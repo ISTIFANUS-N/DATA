@@ -1,0 +1,15 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :focus-visible {
+    outline: 2px solid theme('colors.fanu.500');
+    outline-offset: 2px;
+  }
+}
+
+/* Tabular figures for anything money-related, so digits don't jiggle */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
