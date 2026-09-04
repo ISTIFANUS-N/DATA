@@ -1,0 +1,1 @@
+import{w as c}from"./CPDcRjmY.js";const o=c([]);let r=0;function n(e,a="success"){const s=++r;o.update(t=>[...t,{id:s,message:e,kind:a}]),setTimeout(()=>{o.update(t=>t.filter(i=>i.id!==s))},3200)}export{n as s,o as t};

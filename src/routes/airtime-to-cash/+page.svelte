@@ -7,18 +7,22 @@
     isBeneficiarySaved,
     AIRTIME_TO_CASH_RATE
   } from '$lib/stores/db';
+  import { detectNetwork } from '$lib/network';
   import { showToast } from '$lib/stores/toast';
   import { formatNaira } from '$lib/format';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import PurchaseConfirm from '$lib/components/PurchaseConfirm.svelte';
   import SaveBeneficiaryPrompt from '$lib/components/SaveBeneficiaryPrompt.svelte';
   import BeneficiaryChips from '$lib/components/BeneficiaryChips.svelte';
+  import ToggleSwitch from '$lib/components/ToggleSwitch.svelte';
   import type { Beneficiary, Transaction } from '$lib/types';
 
   let network: Network | null = null;
   let phoneNumber = '';
   let amount: number | null = null;
   let error = '';
+  let autoDetect = true;
+  let detectionMissed = false;
 
   let step: 'form' | 'confirm' | 'success' = 'form';
   let submitting = false;
@@ -27,10 +31,28 @@
   $: payout = amount ? Math.round(amount * AIRTIME_TO_CASH_RATE) : 0;
   $: phoneBeneficiaries = $beneficiaries.filter((b) => b.kind === 'phone');
 
+  $: if (autoDetect && phoneNumber.length === 11) {
+    const detected = detectNetwork(phoneNumber);
+    if (detected) {
+      network = detected;
+      detectionMissed = false;
+    } else {
+      detectionMissed = true;
+    }
+  } else if (phoneNumber.length < 11) {
+    detectionMissed = false;
+  }
+
+  function pickNetworkManually(code: Network) {
+    network = code;
+    autoDetect = false;
+  }
+
   function pickBeneficiary(b: Beneficiary) {
     phoneNumber = b.value;
     if (b.extra && NETWORKS.some((n) => n.code === b.extra)) {
       network = b.extra as Network;
+      autoDetect = false;
     }
   }
 
@@ -72,12 +94,21 @@
       value. Requests are reviewed before your wallet is credited — this isn't instant.
     </div>
 
+    <div class="mb-3">
+      <ToggleSwitch
+        checked={autoDetect}
+        label="Auto-detect network"
+        description="Turn off if a number has been ported to another network"
+        onChange={(v) => (autoDetect = v)}
+      />
+    </div>
+
     <p class="mb-2 text-xs font-medium text-ink/60">Network</p>
-    <div class="mb-5 grid grid-cols-4 gap-2">
+    <div class="mb-2 grid grid-cols-4 gap-2">
       {#each NETWORKS as n}
         <button
           type="button"
-          on:click={() => (network = n.code)}
+          on:click={() => pickNetworkManually(n.code)}
           class="flex flex-col items-center gap-1.5 rounded-xl border py-3 text-xs font-semibold transition"
           class:border-fanu-500={network === n.code}
           class:bg-fanu-50={network === n.code}
@@ -88,6 +119,13 @@
         </button>
       {/each}
     </div>
+    {#if autoDetect && network}
+      <p class="mb-3 text-[11px] text-fanu-700">Detected automatically from the number below</p>
+    {:else if detectionMissed}
+      <p class="mb-3 text-[11px] text-amber-700">Couldn't detect a network for this number — select one above</p>
+    {:else}
+      <div class="mb-3"></div>
+    {/if}
 
     <p class="mb-2 text-xs font-medium text-ink/60">Phone number airtime is sent from</p>
     <BeneficiaryChips items={phoneBeneficiaries} onSelect={pickBeneficiary} />

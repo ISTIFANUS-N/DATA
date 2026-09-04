@@ -14,21 +14,55 @@ export interface DataPlan {
   size: string;
   validity: string;
   price: number;
+  type: DataPlanType;
 }
 
+export type DataPlanType = 'GIFTING' | 'SME' | 'DATA_SHARE' | 'CORPORATE_GIFTING';
+
+export const DATA_PLAN_TYPES: { code: DataPlanType; label: string; blurb: string }[] = [
+  { code: 'GIFTING', label: 'Gifting', blurb: 'Standard data plan, works like your normal bundle' },
+  { code: 'SME', label: 'SME', blurb: 'Cheaper, high-volume — no rollover, no data top-up while active' },
+  { code: 'DATA_SHARE', label: 'Data Share', blurb: 'Share the bundle across multiple devices/lines' },
+  { code: 'CORPORATE_GIFTING', label: 'Corporate Gifting', blurb: 'Bulk plans for teams and businesses' }
+];
+
 export const DATA_PLANS: DataPlan[] = [
-  { id: 'mtn-1gb-30', network: 'MTN', planName: 'MTN 1GB', size: '1GB', validity: '30 days', price: 650 },
-  { id: 'mtn-2gb-30', network: 'MTN', planName: 'MTN 2GB', size: '2GB', validity: '30 days', price: 1200 },
-  { id: 'mtn-5gb-30', network: 'MTN', planName: 'MTN 5GB', size: '5GB', validity: '30 days', price: 2500 },
-  { id: 'mtn-10gb-30', network: 'MTN', planName: 'MTN 10GB', size: '10GB', validity: '30 days', price: 4500 },
-  { id: 'glo-1.5gb-30', network: 'GLO', planName: 'Glo 1.5GB', size: '1.5GB', validity: '30 days', price: 600 },
-  { id: 'glo-4.1gb-30', network: 'GLO', planName: 'Glo 4.1GB', size: '4.1GB', validity: '30 days', price: 1500 },
-  { id: 'glo-10gb-30', network: 'GLO', planName: 'Glo 10GB', size: '10GB', validity: '30 days', price: 3000 },
-  { id: 'airtel-1.5gb-30', network: 'AIRTEL', planName: 'Airtel 1.5GB', size: '1.5GB', validity: '30 days', price: 650 },
-  { id: 'airtel-4gb-30', network: 'AIRTEL', planName: 'Airtel 4GB', size: '4GB', validity: '30 days', price: 2000 },
-  { id: 'airtel-10gb-30', network: 'AIRTEL', planName: 'Airtel 10GB', size: '10GB', validity: '30 days', price: 4000 },
-  { id: '9mobile-1.5gb-30', network: '9MOBILE', planName: '9mobile 1.5GB', size: '1.5GB', validity: '30 days', price: 700 },
-  { id: '9mobile-4.5gb-30', network: '9MOBILE', planName: '9mobile 4.5GB', size: '4.5GB', validity: '30 days', price: 2000 }
+  // --- MTN ---
+  { id: 'mtn-gift-1gb-30', network: 'MTN', planName: 'MTN 1GB', size: '1GB', validity: '30 days', price: 650, type: 'GIFTING' },
+  { id: 'mtn-gift-2gb-30', network: 'MTN', planName: 'MTN 2GB', size: '2GB', validity: '30 days', price: 1200, type: 'GIFTING' },
+  { id: 'mtn-gift-5gb-30', network: 'MTN', planName: 'MTN 5GB', size: '5GB', validity: '30 days', price: 2500, type: 'GIFTING' },
+  { id: 'mtn-gift-10gb-30', network: 'MTN', planName: 'MTN 10GB', size: '10GB', validity: '30 days', price: 4500, type: 'GIFTING' },
+  { id: 'mtn-sme-1gb-30', network: 'MTN', planName: 'MTN SME 1GB', size: '1GB', validity: '30 days', price: 480, type: 'SME' },
+  { id: 'mtn-sme-2gb-30', network: 'MTN', planName: 'MTN SME 2GB', size: '2GB', validity: '30 days', price: 900, type: 'SME' },
+  { id: 'mtn-sme-5gb-30', network: 'MTN', planName: 'MTN SME 5GB', size: '5GB', validity: '30 days', price: 1950, type: 'SME' },
+  { id: 'mtn-share-5gb-30', network: 'MTN', planName: 'MTN Data Share 5GB', size: '5GB', validity: '30 days', price: 2850, type: 'DATA_SHARE' },
+  { id: 'mtn-share-10gb-30', network: 'MTN', planName: 'MTN Data Share 10GB', size: '10GB', validity: '30 days', price: 5100, type: 'DATA_SHARE' },
+  { id: 'mtn-corp-20gb-30', network: 'MTN', planName: 'MTN Corporate Gifting 20GB', size: '20GB', validity: '30 days', price: 8000, type: 'CORPORATE_GIFTING' },
+  { id: 'mtn-corp-40gb-30', network: 'MTN', planName: 'MTN Corporate Gifting 40GB', size: '40GB', validity: '30 days', price: 15000, type: 'CORPORATE_GIFTING' },
+
+  // --- Glo ---
+  { id: 'glo-gift-1.5gb-30', network: 'GLO', planName: 'Glo 1.5GB', size: '1.5GB', validity: '30 days', price: 600, type: 'GIFTING' },
+  { id: 'glo-gift-4.1gb-30', network: 'GLO', planName: 'Glo 4.1GB', size: '4.1GB', validity: '30 days', price: 1500, type: 'GIFTING' },
+  { id: 'glo-gift-10gb-30', network: 'GLO', planName: 'Glo 10GB', size: '10GB', validity: '30 days', price: 3000, type: 'GIFTING' },
+  { id: 'glo-sme-1.5gb-30', network: 'GLO', planName: 'Glo SME 1.5GB', size: '1.5GB', validity: '30 days', price: 450, type: 'SME' },
+  { id: 'glo-sme-5gb-30', network: 'GLO', planName: 'Glo SME 5GB', size: '5GB', validity: '30 days', price: 1700, type: 'SME' },
+  { id: 'glo-share-5.8gb-30', network: 'GLO', planName: 'Glo Data Share 5.8GB', size: '5.8GB', validity: '30 days', price: 2200, type: 'DATA_SHARE' },
+  { id: 'glo-corp-18gb-30', network: 'GLO', planName: 'Glo Corporate Gifting 18GB', size: '18GB', validity: '30 days', price: 6500, type: 'CORPORATE_GIFTING' },
+
+  // --- Airtel ---
+  { id: 'airtel-gift-1.5gb-30', network: 'AIRTEL', planName: 'Airtel 1.5GB', size: '1.5GB', validity: '30 days', price: 650, type: 'GIFTING' },
+  { id: 'airtel-gift-4gb-30', network: 'AIRTEL', planName: 'Airtel 4GB', size: '4GB', validity: '30 days', price: 2000, type: 'GIFTING' },
+  { id: 'airtel-gift-10gb-30', network: 'AIRTEL', planName: 'Airtel 10GB', size: '10GB', validity: '30 days', price: 4000, type: 'GIFTING' },
+  { id: 'airtel-sme-1gb-30', network: 'AIRTEL', planName: 'Airtel SME 1GB', size: '1GB', validity: '30 days', price: 480, type: 'SME' },
+  { id: 'airtel-sme-5gb-30', network: 'AIRTEL', planName: 'Airtel SME 5GB', size: '5GB', validity: '30 days', price: 1900, type: 'SME' },
+  { id: 'airtel-share-6gb-30', network: 'AIRTEL', planName: 'Airtel Data Share 6GB', size: '6GB', validity: '30 days', price: 2500, type: 'DATA_SHARE' },
+  { id: 'airtel-corp-25gb-30', network: 'AIRTEL', planName: 'Airtel Corporate Gifting 25GB', size: '25GB', validity: '30 days', price: 8500, type: 'CORPORATE_GIFTING' },
+
+  // --- 9mobile ---
+  { id: '9mobile-gift-1.5gb-30', network: '9MOBILE', planName: '9mobile 1.5GB', size: '1.5GB', validity: '30 days', price: 700, type: 'GIFTING' },
+  { id: '9mobile-gift-4.5gb-30', network: '9MOBILE', planName: '9mobile 4.5GB', size: '4.5GB', validity: '30 days', price: 2000, type: 'GIFTING' },
+  { id: '9mobile-sme-1.5gb-30', network: '9MOBILE', planName: '9mobile SME 1.5GB', size: '1.5GB', validity: '30 days', price: 550, type: 'SME' },
+  { id: '9mobile-share-5gb-30', network: '9MOBILE', planName: '9mobile Data Share 5GB', size: '5GB', validity: '30 days', price: 2300, type: 'DATA_SHARE' }
 ];
 
 export interface Disco {

@@ -2,25 +2,61 @@
   import { goto } from '$app/navigation';
   import { DISCOS } from '$lib/data/catalog';
   import { purchaseService, walletBalance, beneficiaries, isBeneficiarySaved } from '$lib/stores/db';
+  import { mockValidateAccount, type ValidationResult } from '$lib/validation';
   import { showToast } from '$lib/stores/toast';
   import { formatNaira } from '$lib/format';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import PurchaseConfirm from '$lib/components/PurchaseConfirm.svelte';
   import SaveBeneficiaryPrompt from '$lib/components/SaveBeneficiaryPrompt.svelte';
   import BeneficiaryChips from '$lib/components/BeneficiaryChips.svelte';
+  import ValidationStatus from '$lib/components/ValidationStatus.svelte';
   import type { Beneficiary, Transaction } from '$lib/types';
 
   let disco = '';
   let meterType: 'prepaid' | 'postpaid' = 'prepaid';
+  const meterTypes = ['prepaid', 'postpaid'] as const;
   let meterNumber = '';
   let amount: number | null = null;
   let error = '';
+
+  let validationState: 'idle' | 'validating' | 'valid' | 'invalid' = 'idle';
+  let validationError = '';
+  let customerName = '';
+  let validationToken = 0;
 
   let step: 'form' | 'confirm' | 'success' = 'form';
   let submitting = false;
   let completedTx: Transaction | null = null;
 
   $: meterBeneficiaries = $beneficiaries.filter((b) => b.kind === 'meter');
+
+  // Debounced auto-validation: re-runs whenever the meter number or
+  // disco changes, but a stale in-flight check can't overwrite a
+  // newer one (validationToken guards against that race).
+  $: void runValidation(meterNumber, disco);
+
+  function runValidation(value: string, currentDisco: string) {
+    if (!currentDisco || value.trim().length < 6) {
+      validationState = 'idle';
+      return;
+    }
+    const token = ++validationToken;
+    validationState = 'validating';
+
+    const timer = setTimeout(async () => {
+      const result: ValidationResult = await mockValidateAccount(value, 10);
+      if (token !== validationToken) return; // a newer input superseded this check
+      if (result.valid) {
+        validationState = 'valid';
+        customerName = result.customerName ?? '';
+      } else {
+        validationState = 'invalid';
+        validationError = result.error ?? '';
+      }
+    }, 450);
+
+    return () => clearTimeout(timer);
+  }
 
   function pickBeneficiary(b: Beneficiary) {
     meterNumber = b.value;
@@ -31,6 +67,7 @@
     error = '';
     if (!disco) return (error = 'Choose an electricity provider.');
     if (meterNumber.trim().length < 6) return (error = 'Enter a valid meter number.');
+    if (validationState !== 'valid') return (error = 'This meter number could not be verified.');
     if (!amount || amount < 500) return (error = 'Minimum purchase is ₦500.');
     step = 'confirm';
   }
@@ -43,7 +80,7 @@
         type: 'electricity',
         amount: amount!,
         description: `${disco} · ${meterType} · ${meterNumber}`,
-        meta: { disco, meterType, meterNumber }
+        meta: { disco, meterType, meterNumber, customerName }
       });
       submitting = false;
 
@@ -80,7 +117,7 @@
 
     <p class="mb-2 text-xs font-medium text-ink/60">Meter type</p>
     <div class="mb-5 grid grid-cols-2 gap-2">
-      {#each ['prepaid', 'postpaid'] as type}
+      {#each meterTypes as type}
         <button
           type="button"
           on:click={() => (meterType = type)}
@@ -96,7 +133,7 @@
 
     <p class="mb-2 text-xs font-medium text-ink/60">Meter number</p>
     <BeneficiaryChips items={meterBeneficiaries} onSelect={pickBeneficiary} />
-    <label class="mb-5 flex flex-col gap-1.5">
+    <label class="mb-2 flex flex-col gap-1.5">
       <input
         type="text"
         bind:value={meterNumber}
@@ -104,6 +141,7 @@
         class="rounded-xl border border-fanu-100 px-3.5 py-3 text-sm focus:border-fanu-500"
       />
     </label>
+    <ValidationStatus state={validationState} {customerName} error={validationError} />
 
     <label class="mb-1 flex flex-col gap-1.5">
       <span class="text-xs font-medium text-ink/60">Amount</span>
@@ -124,7 +162,8 @@
     <button
       type="button"
       on:click={review}
-      class="w-full rounded-xl bg-spark-500 py-3.5 text-sm font-semibold text-white shadow-sm transition hover:bg-spark-600"
+      disabled={validationState === 'validating'}
+      class="w-full rounded-xl bg-spark-500 py-3.5 text-sm font-semibold text-white shadow-sm transition hover:bg-spark-600 disabled:opacity-60"
     >
       Review
     </button>
@@ -137,7 +176,8 @@
     rows={[
       { label: 'Provider', value: disco },
       { label: 'Meter type', value: meterType },
-      { label: 'Meter number', value: meterNumber }
+      { label: 'Meter number', value: meterNumber },
+      { label: 'Customer name', value: customerName }
     ]}
     {submitting}
     {error}

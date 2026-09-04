@@ -84,7 +84,8 @@ export function register(input: {
     email,
     phone: input.phone,
     authProvider: 'email',
-    role: 'customer'
+    role: 'customer',
+    package: 'smart_user'
   };
 
   accounts.set({
@@ -133,7 +134,8 @@ export function loginWithGoogleMock(): void {
       email: demoEmail,
       phone: '',
       authProvider: 'google',
-      role: 'customer'
+      role: 'customer',
+      package: 'smart_user'
     };
     accounts.set({
       ...db,
@@ -167,7 +169,8 @@ export function ensureGuestSession(): void {
       email: key,
       phone: '08000000000',
       authProvider: 'email',
-      role: 'customer'
+      role: 'customer',
+      package: 'smart_user'
     };
     accounts.set({
       ...db,
@@ -191,6 +194,16 @@ export function updatePhone(phone: string): { ok: true } | { ok: false; error: s
     return { ...db, [key]: { ...account, profile: { ...account.profile, phone } } };
   });
   return { ok: true };
+}
+
+export function switchPackage(pkg: Profile['package']): void {
+  const key = get(sessionEmail);
+  if (!key) return;
+  accounts.update((db) => {
+    const account = db[key];
+    if (!account) return db;
+    return { ...db, [key]: { ...account, profile: { ...account.profile, package: pkg } } };
+  });
 }
 
 // --- Wallet + transactions ---

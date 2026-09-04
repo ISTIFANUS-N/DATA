@@ -1,7 +1,8 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
-  import { currentProfile, walletBalance, logout, beneficiaries, removeBeneficiary } from '$lib/stores/db';
+  import { currentProfile, walletBalance, logout, beneficiaries, removeBeneficiary, switchPackage } from '$lib/stores/db';
   import { formatNaira } from '$lib/format';
+  import { packageLabel } from '$lib/pricing';
   import PageHeader from '$lib/components/PageHeader.svelte';
 
   function handleLogout() {
@@ -41,6 +42,37 @@
         <span class="text-sm text-ink/60">Signed in with</span>
         <span class="text-sm font-medium capitalize text-ink">{$currentProfile.authProvider}</span>
       </div>
+    </div>
+
+    <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-ink/45">Account type</p>
+    <div class="mb-5 rounded-2xl bg-white p-4 shadow-sm">
+      <div class="grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          on:click={() => switchPackage('smart_user')}
+          class="rounded-xl border py-3 text-left transition"
+          class:border-fanu-500={$currentProfile.package === 'smart_user'}
+          class:bg-fanu-50={$currentProfile.package === 'smart_user'}
+          class:border-fanu-100={$currentProfile.package !== 'smart_user'}
+        >
+          <p class="px-3 text-sm font-semibold text-ink">Smart User</p>
+          <p class="px-3 text-[11px] text-ink/45">Standard retail pricing</p>
+        </button>
+        <button
+          type="button"
+          on:click={() => switchPackage('reseller')}
+          class="rounded-xl border py-3 text-left transition"
+          class:border-fanu-500={$currentProfile.package === 'reseller'}
+          class:bg-fanu-50={$currentProfile.package === 'reseller'}
+          class:border-fanu-100={$currentProfile.package !== 'reseller'}
+        >
+          <p class="px-3 text-sm font-semibold text-ink">Reseller</p>
+          <p class="px-3 text-[11px] text-ink/45">Wholesale pricing on data & cable</p>
+        </button>
+      </div>
+      <p class="mt-3 text-[11px] text-ink/40">
+        Currently on <span class="font-medium text-ink/60">{packageLabel($currentProfile.package)}</span> pricing.
+      </p>
     </div>
   {/if}
 

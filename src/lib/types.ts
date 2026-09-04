@@ -5,6 +5,7 @@ export interface Profile {
   phone: string;
   authProvider: 'email' | 'google';
   role: 'customer' | 'admin';
+  package: 'smart_user' | 'reseller';
 }
 
 export type TransactionType =

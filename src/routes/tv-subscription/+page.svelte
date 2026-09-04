@@ -1,13 +1,16 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { CABLE_PLANS, type CablePlan } from '$lib/data/catalog';
-  import { purchaseService, walletBalance, beneficiaries, isBeneficiarySaved } from '$lib/stores/db';
+  import { purchaseService, walletBalance, beneficiaries, isBeneficiarySaved, currentProfile } from '$lib/stores/db';
+  import { mockValidateAccount, type ValidationResult } from '$lib/validation';
+  import { applyPackagePricing, packageLabel } from '$lib/pricing';
   import { showToast } from '$lib/stores/toast';
   import { formatNaira } from '$lib/format';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import PurchaseConfirm from '$lib/components/PurchaseConfirm.svelte';
   import SaveBeneficiaryPrompt from '$lib/components/SaveBeneficiaryPrompt.svelte';
   import BeneficiaryChips from '$lib/components/BeneficiaryChips.svelte';
+  import ValidationStatus from '$lib/components/ValidationStatus.svelte';
   import type { Beneficiary, Transaction } from '$lib/types';
 
   const providers = ['DSTV', 'GOTV', 'STARTIMES'] as const;
@@ -17,14 +20,45 @@
   let selectedPlan: CablePlan | null = null;
   let error = '';
 
+  let validationState: 'idle' | 'validating' | 'valid' | 'invalid' = 'idle';
+  let validationError = '';
+  let customerName = '';
+  let validationToken = 0;
+
   let step: 'form' | 'confirm' | 'success' = 'form';
   let submitting = false;
   let completedTx: Transaction | null = null;
 
   $: plansForProvider = CABLE_PLANS.filter((p) => p.provider === provider);
   $: smartcardBeneficiaries = $beneficiaries.filter((b) => b.kind === 'smartcard');
+  $: pkg = $currentProfile?.package ?? 'smart_user';
+  $: chargedPrice = selectedPlan ? applyPackagePricing(selectedPlan.price, 'cable', pkg) : 0;
+
   $: {
     if (selectedPlan && selectedPlan.provider !== provider) selectedPlan = null;
+  }
+
+  $: void runValidation(smartcardNumber);
+
+  function runValidation(value: string) {
+    if (value.trim().length < 8) {
+      validationState = 'idle';
+      return;
+    }
+    const token = ++validationToken;
+    validationState = 'validating';
+
+    setTimeout(async () => {
+      const result: ValidationResult = await mockValidateAccount(value, 8);
+      if (token !== validationToken) return;
+      if (result.valid) {
+        validationState = 'valid';
+        customerName = result.customerName ?? '';
+      } else {
+        validationState = 'invalid';
+        validationError = result.error ?? '';
+      }
+    }, 450);
   }
 
   function pickBeneficiary(b: Beneficiary) {
@@ -37,6 +71,7 @@
   function review() {
     error = '';
     if (smartcardNumber.trim().length < 8) return (error = 'Enter a valid smartcard/IUC number.');
+    if (validationState !== 'valid') return (error = 'This smartcard/IUC number could not be verified.');
     if (!selectedPlan) return (error = 'Choose a package.');
     step = 'confirm';
   }
@@ -48,9 +83,9 @@
       const plan = selectedPlan!;
       const result = purchaseService({
         type: 'cable',
-        amount: plan.price,
+        amount: chargedPrice,
         description: `${plan.packageName} · ${smartcardNumber}`,
-        meta: { provider, smartcardNumber, planId: plan.id }
+        meta: { provider, smartcardNumber, planId: plan.id, customerName }
       });
       submitting = false;
 
@@ -90,7 +125,7 @@
 
     <p class="mb-2 text-xs font-medium text-ink/60">Smartcard / IUC number</p>
     <BeneficiaryChips items={smartcardBeneficiaries} onSelect={pickBeneficiary} />
-    <label class="mb-5 flex flex-col gap-1.5">
+    <label class="mb-2 flex flex-col gap-1.5">
       <input
         type="text"
         bind:value={smartcardNumber}
@@ -98,6 +133,7 @@
         class="rounded-xl border border-fanu-100 px-3.5 py-3 text-sm focus:border-fanu-500"
       />
     </label>
+    <ValidationStatus state={validationState} {customerName} error={validationError} />
 
     <p class="mb-2 text-xs font-medium text-ink/60">Choose a package</p>
     <div class="mb-5 flex flex-col gap-2">
@@ -111,7 +147,9 @@
           class:border-fanu-100={selectedPlan?.id !== plan.id}
         >
           <p class="text-sm font-semibold text-ink">{plan.packageName}</p>
-          <p class="font-mono text-sm font-semibold tabular-nums text-fanu-700">{formatNaira(plan.price)}</p>
+          <p class="font-mono text-sm font-semibold tabular-nums text-fanu-700">
+            {formatNaira(applyPackagePricing(plan.price, 'cable', pkg))}
+          </p>
         </button>
       {/each}
     </div>
@@ -125,7 +163,8 @@
     <button
       type="button"
       on:click={review}
-      class="w-full rounded-xl bg-spark-500 py-3.5 text-sm font-semibold text-white shadow-sm transition hover:bg-spark-600"
+      disabled={validationState === 'validating'}
+      class="w-full rounded-xl bg-spark-500 py-3.5 text-sm font-semibold text-white shadow-sm transition hover:bg-spark-600 disabled:opacity-60"
     >
       Review
     </button>
@@ -133,12 +172,13 @@
 {:else if step === 'confirm' && selectedPlan}
   <PurchaseConfirm
     title="You're paying"
-    amount={selectedPlan.price}
-    amountLabel="Package price"
+    amount={chargedPrice}
+    amountLabel={pkg === 'reseller' ? `Reseller price · ${packageLabel(pkg)}` : 'Package price'}
     rows={[
       { label: 'Provider', value: provider },
       { label: 'Package', value: selectedPlan.packageName },
-      { label: 'Smartcard / IUC', value: smartcardNumber }
+      { label: 'Smartcard / IUC', value: smartcardNumber },
+      { label: 'Customer name', value: customerName }
     ]}
     {submitting}
     {error}

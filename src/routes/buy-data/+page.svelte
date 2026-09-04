@@ -1,34 +1,61 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
-  import { NETWORKS, DATA_PLANS, type Network, type DataPlan } from '$lib/data/catalog';
-  import { purchaseService, walletBalance, beneficiaries, isBeneficiarySaved } from '$lib/stores/db';
+  import { NETWORKS, DATA_PLANS, DATA_PLAN_TYPES, type Network, type DataPlan, type DataPlanType } from '$lib/data/catalog';
+  import { purchaseService, walletBalance, beneficiaries, isBeneficiarySaved, currentProfile } from '$lib/stores/db';
+  import { detectNetwork } from '$lib/network';
+  import { applyPackagePricing, packageLabel } from '$lib/pricing';
   import { showToast } from '$lib/stores/toast';
   import { formatNaira } from '$lib/format';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import PurchaseConfirm from '$lib/components/PurchaseConfirm.svelte';
   import SaveBeneficiaryPrompt from '$lib/components/SaveBeneficiaryPrompt.svelte';
   import BeneficiaryChips from '$lib/components/BeneficiaryChips.svelte';
+  import ToggleSwitch from '$lib/components/ToggleSwitch.svelte';
   import type { Beneficiary, Transaction } from '$lib/types';
 
   let network: Network = 'MTN';
+  let planType: DataPlanType = 'GIFTING';
   let phoneNumber = '';
   let selectedPlan: DataPlan | null = null;
   let error = '';
+  let autoDetect = true;
+  let detectionMissed = false;
 
   let step: 'form' | 'confirm' | 'success' = 'form';
   let submitting = false;
   let completedTx: Transaction | null = null;
 
-  $: plansForNetwork = DATA_PLANS.filter((p) => p.network === network);
+  $: plansForSelection = DATA_PLANS.filter((p) => p.network === network && p.type === planType);
   $: phoneBeneficiaries = $beneficiaries.filter((b) => b.kind === 'phone');
+  $: pkg = $currentProfile?.package ?? 'smart_user';
+  $: chargedPrice = selectedPlan ? applyPackagePricing(selectedPlan.price, 'data', pkg) : 0;
+
+  $: if (autoDetect && phoneNumber.length === 11) {
+    const detected = detectNetwork(phoneNumber);
+    if (detected) {
+      network = detected;
+      detectionMissed = false;
+    } else {
+      detectionMissed = true;
+    }
+  } else if (phoneNumber.length < 11) {
+    detectionMissed = false;
+  }
+
   $: {
-    if (selectedPlan && selectedPlan.network !== network) selectedPlan = null;
+    if (selectedPlan && (selectedPlan.network !== network || selectedPlan.type !== planType)) selectedPlan = null;
+  }
+
+  function pickNetworkManually(code: Network) {
+    network = code;
+    autoDetect = false;
   }
 
   function pickBeneficiary(b: Beneficiary) {
     phoneNumber = b.value;
     if (b.extra && NETWORKS.some((n) => n.code === b.extra)) {
       network = b.extra as Network;
+      autoDetect = false;
     }
   }
 
@@ -46,9 +73,9 @@
       const plan = selectedPlan!;
       const result = purchaseService({
         type: 'data',
-        amount: plan.price,
+        amount: chargedPrice,
         description: `${plan.planName} (${plan.size}, ${plan.validity}) · ${phoneNumber}`,
-        meta: { network, phoneNumber, planId: plan.id }
+        meta: { network, phoneNumber, planId: plan.id, planType: plan.type }
       });
       submitting = false;
 
@@ -70,12 +97,21 @@
 
 {#if step === 'form'}
   <div class="px-4 py-5">
+    <div class="mb-3">
+      <ToggleSwitch
+        checked={autoDetect}
+        label="Auto-detect network"
+        description="Turn off if a number has been ported to another network"
+        onChange={(v) => (autoDetect = v)}
+      />
+    </div>
+
     <p class="mb-2 text-xs font-medium text-ink/60">Network</p>
-    <div class="mb-5 grid grid-cols-4 gap-2">
+    <div class="mb-2 grid grid-cols-4 gap-2">
       {#each NETWORKS as n}
         <button
           type="button"
-          on:click={() => (network = n.code)}
+          on:click={() => pickNetworkManually(n.code)}
           class="flex flex-col items-center gap-1.5 rounded-xl border py-3 text-xs font-semibold transition"
           class:border-fanu-500={network === n.code}
           class:bg-fanu-50={network === n.code}
@@ -86,6 +122,13 @@
         </button>
       {/each}
     </div>
+    {#if autoDetect && network}
+      <p class="mb-3 text-[11px] text-fanu-700">Detected automatically from the number below</p>
+    {:else if detectionMissed}
+      <p class="mb-3 text-[11px] text-amber-700">Couldn't detect a network for this number — select one above</p>
+    {:else}
+      <div class="mb-3"></div>
+    {/if}
 
     <p class="mb-2 text-xs font-medium text-ink/60">Phone number</p>
     <BeneficiaryChips items={phoneBeneficiaries} onSelect={pickBeneficiary} />
@@ -99,9 +142,30 @@
       />
     </label>
 
+    <p class="mb-2 text-xs font-medium text-ink/60">Plan type</p>
+    <div class="mb-2 flex gap-2 overflow-x-auto pb-1">
+      {#each DATA_PLAN_TYPES as t}
+        <button
+          type="button"
+          on:click={() => (planType = t.code)}
+          class="shrink-0 rounded-full border px-3.5 py-1.5 text-xs font-medium transition"
+          class:border-fanu-500={planType === t.code}
+          class:bg-fanu-600={planType === t.code}
+          class:text-white={planType === t.code}
+          class:border-fanu-100={planType !== t.code}
+          class:text-ink={planType !== t.code}
+        >
+          {t.label}
+        </button>
+      {/each}
+    </div>
+    <p class="mb-4 text-[11px] text-ink/45">
+      {DATA_PLAN_TYPES.find((t) => t.code === planType)?.blurb}
+    </p>
+
     <p class="mb-2 text-xs font-medium text-ink/60">Choose a plan</p>
     <div class="mb-5 flex flex-col gap-2">
-      {#each plansForNetwork as plan (plan.id)}
+      {#each plansForSelection as plan (plan.id)}
         <button
           type="button"
           on:click={() => (selectedPlan = plan)}
@@ -114,8 +178,14 @@
             <p class="text-sm font-semibold text-ink">{plan.size} · {plan.validity}</p>
             <p class="text-[11px] text-ink/45">{plan.planName}</p>
           </div>
-          <p class="font-mono text-sm font-semibold tabular-nums text-fanu-700">{formatNaira(plan.price)}</p>
+          <p class="font-mono text-sm font-semibold tabular-nums text-fanu-700">
+            {formatNaira(applyPackagePricing(plan.price, 'data', pkg))}
+          </p>
         </button>
+      {:else}
+        <p class="rounded-xl bg-white px-4 py-6 text-center text-xs text-ink/40 shadow-sm">
+          No {DATA_PLAN_TYPES.find((t) => t.code === planType)?.label} plans for {network} yet.
+        </p>
       {/each}
     </div>
 
@@ -136,10 +206,11 @@
 {:else if step === 'confirm' && selectedPlan}
   <PurchaseConfirm
     title="You're buying"
-    amount={selectedPlan.price}
-    amountLabel="Data plan price"
+    amount={chargedPrice}
+    amountLabel={pkg === 'reseller' ? `Reseller price · ${packageLabel(pkg)}` : 'Data plan price'}
     rows={[
       { label: 'Network', value: network },
+      { label: 'Plan type', value: DATA_PLAN_TYPES.find((t) => t.code === planType)?.label ?? '' },
       { label: 'Plan', value: `${selectedPlan.size} · ${selectedPlan.validity}` },
       { label: 'Phone number', value: phoneNumber }
     ]}
