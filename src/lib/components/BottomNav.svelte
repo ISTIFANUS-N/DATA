@@ -13,7 +13,7 @@
 </script>
 
 <nav
-  class="fixed bottom-0 left-0 right-0 z-40 border-t border-fanu-100 bg-white/95 backdrop-blur
+  class="fixed bottom-0 left-0 right-0 z-40 border-t border-fanu-100 bg-white/95 backdrop-blur print:hidden
          supports-[backdrop-filter]:bg-white/80 md:hidden"
   aria-label="Primary"
 >

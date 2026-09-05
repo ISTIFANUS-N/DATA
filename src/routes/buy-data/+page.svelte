@@ -5,23 +5,25 @@
   import { detectNetwork } from '$lib/network';
   import { applyPackagePricing, packageLabel } from '$lib/pricing';
   import { showToast } from '$lib/stores/toast';
-  import { formatNaira } from '$lib/format';
+  import { formatNaira, formatDate } from '$lib/format';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import PurchaseConfirm from '$lib/components/PurchaseConfirm.svelte';
   import SaveBeneficiaryPrompt from '$lib/components/SaveBeneficiaryPrompt.svelte';
   import BeneficiaryChips from '$lib/components/BeneficiaryChips.svelte';
   import ToggleSwitch from '$lib/components/ToggleSwitch.svelte';
+  import TransactionReceipt from '$lib/components/TransactionReceipt.svelte';
   import type { Beneficiary, Transaction } from '$lib/types';
 
   let network: Network = 'MTN';
   let planType: DataPlanType = 'GIFTING';
   let phoneNumber = '';
   let selectedPlan: DataPlan | null = null;
+  let confirmedPlan: DataPlan | null = null;
   let error = '';
   let autoDetect = true;
   let detectionMissed = false;
 
-  let step: 'form' | 'confirm' | 'success' = 'form';
+  let step: 'form' | 'confirm' | 'success' | 'failed' = 'form';
   let submitting = false;
   let completedTx: Transaction | null = null;
 
@@ -69,11 +71,12 @@
   function confirmPurchase() {
     error = '';
     submitting = true;
+    const plan = confirmedPlan ?? selectedPlan!;
+    confirmedPlan = plan;
     setTimeout(() => {
-      const plan = selectedPlan!;
       const result = purchaseService({
         type: 'data',
-        amount: chargedPrice,
+        amount: applyPackagePricing(plan.price, 'data', pkg),
         description: `${plan.planName} (${plan.size}, ${plan.validity}) · ${phoneNumber}`,
         meta: { network, phoneNumber, planId: plan.id, planType: plan.type }
       });
@@ -85,15 +88,29 @@
         return;
       }
       completedTx = result.transaction;
-      showToast(`${plan.planName} sent to ${phoneNumber}`);
-      step = 'success';
-    }, 500);
+      if (result.transaction.status === 'failed') {
+        step = 'failed';
+      } else {
+        showToast(`${plan.planName} sent to ${phoneNumber}`);
+        step = 'success';
+      }
+    }, 700);
+  }
+
+  function resetForm() {
+    phoneNumber = '';
+    selectedPlan = null;
+    confirmedPlan = null;
+    completedTx = null;
+    step = 'form';
   }
 </script>
 
 <svelte:head><title>Buy data — Stefanx</title></svelte:head>
 
-<PageHeader title="Buy data" />
+{#if step !== 'success' && step !== 'failed'}
+  <PageHeader title="Buy data" />
+{/if}
 
 {#if step === 'form'}
   <div class="px-4 py-5">
@@ -219,32 +236,47 @@
     onConfirm={confirmPurchase}
     onBack={() => (step = 'form')}
   />
-{:else if step === 'success' && completedTx}
-  <div class="px-4 py-5">
-    <div class="mb-5 rounded-2xl bg-white p-6 text-center shadow-sm">
-      <div class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-fanu-50 text-2xl">✓</div>
-      <p class="font-display text-lg font-semibold text-ink">Data sent</p>
-      <p class="mt-1 text-sm text-ink/50">{selectedPlan?.planName} to {phoneNumber}</p>
+{:else if step === 'success' && completedTx && confirmedPlan}
+  <TransactionReceipt
+    status="success"
+    title="Purchase Successful!"
+    subtitle="Your data has been credited instantly"
+    reference={completedTx.reference}
+    rows={[
+      { label: 'Service / Product', value: `${network} ${confirmedPlan.size} Data` },
+      { label: 'Recipient', value: phoneNumber },
+      { label: 'Amount Charged', value: `-${formatNaira(completedTx.amount)}`, emphasis: true },
+      { label: 'Transaction Date', value: formatDate(completedTx.createdAt) }
+    ]}
+    shareText={`FANU receipt\n${network} ${confirmedPlan.size} Data\nTo: ${phoneNumber}\nAmount: ${formatNaira(completedTx.amount)}\nRef: ${completedTx.reference}`}
+    onDone={() => goto('/dashboard')}
+    onBuyAgain={resetForm}
+  />
+  {#if !isBeneficiarySaved('phone', phoneNumber)}
+    <div class="mx-auto mb-6 max-w-sm px-4">
+      <SaveBeneficiaryPrompt
+        kind="phone"
+        value={phoneNumber}
+        extra={network}
+        valueLabel={phoneNumber}
+        onDone={() => {}}
+      />
     </div>
-
-    {#if !isBeneficiarySaved('phone', phoneNumber)}
-      <div class="mb-5">
-        <SaveBeneficiaryPrompt
-          kind="phone"
-          value={phoneNumber}
-          extra={network}
-          valueLabel={phoneNumber}
-          onDone={() => goto('/dashboard')}
-        />
-      </div>
-    {/if}
-
-    <button
-      type="button"
-      on:click={() => goto('/dashboard')}
-      class="w-full rounded-xl border border-fanu-100 py-3 text-sm font-semibold text-ink/70 transition hover:bg-fanu-50"
-    >
-      Back to dashboard
-    </button>
-  </div>
+  {/if}
+{:else if step === 'failed' && completedTx && confirmedPlan}
+  <TransactionReceipt
+    status="failed"
+    title="Transaction Failed"
+    subtitle="Unable to complete your data purchase. Please try again."
+    reference={completedTx.reference}
+    rows={[
+      { label: 'Service / Product', value: `${network} ${confirmedPlan.size} Data` },
+      { label: 'Recipient', value: phoneNumber },
+      { label: 'Amount', value: formatNaira(completedTx.amount) }
+    ]}
+    shareText={`FANU receipt\n${network} ${confirmedPlan.size} Data — Failed\nTo: ${phoneNumber}\nRef: ${completedTx.reference}`}
+    onDone={() => goto('/dashboard')}
+    onRetry={confirmPurchase}
+    retrying={submitting}
+  />
 {/if}

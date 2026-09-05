@@ -4,12 +4,13 @@
   import { purchaseService, walletBalance, beneficiaries, isBeneficiarySaved } from '$lib/stores/db';
   import { mockValidateAccount, type ValidationResult } from '$lib/validation';
   import { showToast } from '$lib/stores/toast';
-  import { formatNaira } from '$lib/format';
+  import { formatNaira, formatDate } from '$lib/format';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import PurchaseConfirm from '$lib/components/PurchaseConfirm.svelte';
   import SaveBeneficiaryPrompt from '$lib/components/SaveBeneficiaryPrompt.svelte';
   import BeneficiaryChips from '$lib/components/BeneficiaryChips.svelte';
   import ValidationStatus from '$lib/components/ValidationStatus.svelte';
+  import TransactionReceipt from '$lib/components/TransactionReceipt.svelte';
   import type { Beneficiary, Transaction } from '$lib/types';
 
   let disco = '';
@@ -24,15 +25,12 @@
   let customerName = '';
   let validationToken = 0;
 
-  let step: 'form' | 'confirm' | 'success' = 'form';
+  let step: 'form' | 'confirm' | 'success' | 'failed' = 'form';
   let submitting = false;
   let completedTx: Transaction | null = null;
 
   $: meterBeneficiaries = $beneficiaries.filter((b) => b.kind === 'meter');
 
-  // Debounced auto-validation: re-runs whenever the meter number or
-  // disco changes, but a stale in-flight check can't overwrite a
-  // newer one (validationToken guards against that race).
   $: void runValidation(meterNumber, disco);
 
   function runValidation(value: string, currentDisco: string) {
@@ -43,9 +41,9 @@
     const token = ++validationToken;
     validationState = 'validating';
 
-    const timer = setTimeout(async () => {
+    setTimeout(async () => {
       const result: ValidationResult = await mockValidateAccount(value, 10);
-      if (token !== validationToken) return; // a newer input superseded this check
+      if (token !== validationToken) return;
       if (result.valid) {
         validationState = 'valid';
         customerName = result.customerName ?? '';
@@ -54,8 +52,6 @@
         validationError = result.error ?? '';
       }
     }, 450);
-
-    return () => clearTimeout(timer);
   }
 
   function pickBeneficiary(b: Beneficiary) {
@@ -90,15 +86,29 @@
         return;
       }
       completedTx = result.transaction;
-      showToast(`Token sent for meter ${meterNumber}`);
-      step = 'success';
-    }, 500);
+      if (result.transaction.status === 'failed') {
+        step = 'failed';
+      } else {
+        showToast(`Token sent for meter ${meterNumber}`);
+        step = 'success';
+      }
+    }, 700);
+  }
+
+  function resetForm() {
+    meterNumber = '';
+    amount = null;
+    validationState = 'idle';
+    completedTx = null;
+    step = 'form';
   }
 </script>
 
 <svelte:head><title>Pay electricity bill — Stefanx</title></svelte:head>
 
-<PageHeader title="Electricity bill" />
+{#if step !== 'success' && step !== 'failed'}
+  <PageHeader title="Electricity bill" />
+{/if}
 
 {#if step === 'form'}
   <div class="px-4 py-5">
@@ -185,31 +195,47 @@
     onBack={() => (step = 'form')}
   />
 {:else if step === 'success' && completedTx}
-  <div class="px-4 py-5">
-    <div class="mb-5 rounded-2xl bg-white p-6 text-center shadow-sm">
-      <div class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-fanu-50 text-2xl">✓</div>
-      <p class="font-display text-lg font-semibold text-ink">Token sent</p>
-      <p class="mt-1 text-sm text-ink/50">{formatNaira(completedTx.amount)} to meter {meterNumber}</p>
+  <TransactionReceipt
+    status="success"
+    title="Purchase Successful!"
+    subtitle="Your electricity token has been generated"
+    reference={completedTx.reference}
+    rows={[
+      { label: 'Service / Product', value: `${disco} · ${meterType}` },
+      { label: 'Meter number', value: meterNumber },
+      { label: 'Customer name', value: customerName },
+      { label: 'Amount Charged', value: `-${formatNaira(completedTx.amount)}`, emphasis: true },
+      { label: 'Transaction Date', value: formatDate(completedTx.createdAt) }
+    ]}
+    shareText={`FANU receipt\n${disco} Electricity\nMeter: ${meterNumber}\nAmount: ${formatNaira(completedTx.amount)}\nRef: ${completedTx.reference}`}
+    onDone={() => goto('/dashboard')}
+    onBuyAgain={resetForm}
+  />
+  {#if !isBeneficiarySaved('meter', meterNumber)}
+    <div class="mx-auto mb-6 max-w-sm px-4">
+      <SaveBeneficiaryPrompt
+        kind="meter"
+        value={meterNumber}
+        extra={disco}
+        valueLabel={`meter ${meterNumber}`}
+        onDone={() => {}}
+      />
     </div>
-
-    {#if !isBeneficiarySaved('meter', meterNumber)}
-      <div class="mb-5">
-        <SaveBeneficiaryPrompt
-          kind="meter"
-          value={meterNumber}
-          extra={disco}
-          valueLabel={`meter ${meterNumber}`}
-          onDone={() => goto('/dashboard')}
-        />
-      </div>
-    {/if}
-
-    <button
-      type="button"
-      on:click={() => goto('/dashboard')}
-      class="w-full rounded-xl border border-fanu-100 py-3 text-sm font-semibold text-ink/70 transition hover:bg-fanu-50"
-    >
-      Back to dashboard
-    </button>
-  </div>
+  {/if}
+{:else if step === 'failed' && completedTx}
+  <TransactionReceipt
+    status="failed"
+    title="Transaction Failed"
+    subtitle="Unable to complete your electricity purchase. Please try again."
+    reference={completedTx.reference}
+    rows={[
+      { label: 'Service / Product', value: `${disco} · ${meterType}` },
+      { label: 'Meter number', value: meterNumber },
+      { label: 'Amount', value: formatNaira(completedTx.amount) }
+    ]}
+    shareText={`FANU receipt\n${disco} Electricity — Failed\nMeter: ${meterNumber}\nRef: ${completedTx.reference}`}
+    onDone={() => goto('/dashboard')}
+    onRetry={confirmPurchase}
+    retrying={submitting}
+  />
 {/if}

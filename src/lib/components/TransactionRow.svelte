@@ -10,7 +10,8 @@
     data: '📶',
     electricity: '💡',
     cable: '📺',
-    airtime_to_cash: '🔄'
+    airtime_to_cash: '🔄',
+    recharge_card_printing: '🖨️'
   };
 
   const labels: Record<Transaction['type'], string> = {
@@ -19,7 +20,8 @@
     data: 'Data',
     electricity: 'Electricity',
     cable: 'Cable TV',
-    airtime_to_cash: 'Airtime to cash'
+    airtime_to_cash: 'Airtime to cash',
+    recharge_card_printing: 'Recharge card printing'
   };
 
   const statusStyles: Record<Transaction['status'], string> = {

@@ -11,7 +11,8 @@
     { href: '/buy-airtime', label: 'Airtime', icon: '📱' },
     { href: '/tv-subscription', label: 'Cable TV', icon: '📺' },
     { href: '/electricity-bill', label: 'Electricity', icon: '💡' },
-    { href: '/airtime-to-cash', label: 'Airtime to cash', icon: '🔄' }
+    { href: '/airtime-to-cash', label: 'Airtime to cash', icon: '🔄' },
+    { href: '/recharge-card-printing', label: 'Recharge cards', icon: '🖨️' }
   ];
 
   $: recentTransactions = $transactions.slice(0, 5);
@@ -38,7 +39,7 @@
 
   <div class="mt-6">
     <p class="mb-3 text-xs font-semibold uppercase tracking-wide text-ink/45">Services</p>
-    <div class="grid grid-cols-4 gap-3 sm:grid-cols-5">
+    <div class="grid grid-cols-3 gap-3 sm:grid-cols-6">
       {#each services as service}
         <a
           href={service.href}
