@@ -251,6 +251,15 @@ export function fundWallet(amount: number): Transaction {
  * just synchronously and in memory. Returns the resulting transaction
  * either way so the calling page can show success/failure state.
  */
+// Simulated provider failure rate for demo purposes, so the failure
+// receipt path is actually reachable without wiring a real VTU
+// provider. On failure, the wallet is never debited in the first
+// place (equivalent end state to "debit then instantly refund", just
+// without the redundant balance flicker) — matching how the real
+// Edge Functions behave (see executeServicePurchase's refund-on-
+// failure logic).
+const SIMULATED_FAILURE_RATE = 0.12;
+
 export function purchaseService(input: {
   type: TransactionType;
   amount: number;
@@ -265,11 +274,12 @@ export function purchaseService(input: {
     return { ok: false, error: 'Insufficient wallet balance. Fund your wallet to continue.' };
   }
 
+  const willFail = Math.random() < SIMULATED_FAILURE_RATE;
   const reference = newId(input.type);
   const tx: Transaction = {
     id: newId('tx'),
     type: input.type,
-    status: 'success', // mock provider always "succeeds" for now
+    status: willFail ? 'failed' : 'success',
     amount: input.amount,
     reference,
     description: input.description,
@@ -277,13 +287,19 @@ export function purchaseService(input: {
     meta: input.meta
   };
 
-  accounts.update((db) => {
-    const account = db[key];
-    if (!account) return db;
-    return { ...db, [key]: { ...account, walletBalance: account.walletBalance - input.amount } };
-  });
+  if (!willFail) {
+    accounts.update((db) => {
+      const account = db[key];
+      if (!account) return db;
+      return { ...db, [key]: { ...account, walletBalance: account.walletBalance - input.amount } };
+    });
+  }
   addTransactionForCurrentUser(tx);
 
+  // ok: true here means "the attempt was processed" — check
+  // tx.status to see whether it actually succeeded. ok: false is
+  // reserved for pre-attempt validation failures above (not logged
+  // in, insufficient balance), which block before anything happens.
   return { ok: true, transaction: tx };
 }
 

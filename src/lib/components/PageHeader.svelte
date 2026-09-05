@@ -3,7 +3,7 @@
   export let showBack = true;
 </script>
 
-<header class="sticky top-0 z-30 flex items-center gap-3 border-b border-fanu-100 bg-paper/95 px-4 py-3.5 backdrop-blur">
+<header class="sticky top-0 z-30 flex items-center gap-3 border-b border-fanu-100 bg-paper/95 px-4 py-3.5 backdrop-blur print:hidden">
   {#if showBack}
     <button
       on:click={() => history.back()}

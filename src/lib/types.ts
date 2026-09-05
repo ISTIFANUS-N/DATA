@@ -14,7 +14,8 @@ export type TransactionType =
   | 'data'
   | 'electricity'
   | 'cable'
-  | 'airtime_to_cash';
+  | 'airtime_to_cash'
+  | 'recharge_card_printing';
 
 export type TransactionStatus = 'success' | 'pending' | 'failed';
 

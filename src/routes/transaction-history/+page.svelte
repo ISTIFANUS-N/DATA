@@ -11,7 +11,8 @@
     { value: 'data', label: 'Data' },
     { value: 'electricity', label: 'Electricity' },
     { value: 'cable', label: 'Cable' },
-    { value: 'airtime_to_cash', label: 'Airtime to cash' }
+    { value: 'airtime_to_cash', label: 'Airtime to cash' },
+    { value: 'recharge_card_printing', label: 'Recharge cards' }
   ];
 
   let activeFilter: TransactionType | 'all' = 'all';

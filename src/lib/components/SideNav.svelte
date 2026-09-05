@@ -12,14 +12,15 @@
     { href: '/buy-airtime', label: 'Buy airtime' },
     { href: '/tv-subscription', label: 'Cable TV' },
     { href: '/electricity-bill', label: 'Electricity' },
-    { href: '/airtime-to-cash', label: 'Airtime to cash' }
+    { href: '/airtime-to-cash', label: 'Airtime to cash' },
+    { href: '/recharge-card-printing', label: 'Recharge card printing' }
   ];
 
   $: isActive = (href: string) => $page.url.pathname === href;
 </script>
 
 <aside
-  class="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-fanu-100 bg-white px-5 py-6 md:flex"
+  class="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-fanu-100 bg-white px-5 py-6 md:flex print:hidden"
 >
   <a href="/dashboard" class="mb-8 flex items-center gap-2.5">
     <img src="/stefanx-icon.png" alt="" class="h-8 w-8 rounded-lg" />

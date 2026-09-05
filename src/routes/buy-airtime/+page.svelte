@@ -5,12 +5,13 @@
   import { detectNetwork } from '$lib/network';
   import { applyPackagePricing, packageLabel } from '$lib/pricing';
   import { showToast } from '$lib/stores/toast';
-  import { formatNaira } from '$lib/format';
+  import { formatNaira, formatDate } from '$lib/format';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import PurchaseConfirm from '$lib/components/PurchaseConfirm.svelte';
   import SaveBeneficiaryPrompt from '$lib/components/SaveBeneficiaryPrompt.svelte';
   import BeneficiaryChips from '$lib/components/BeneficiaryChips.svelte';
   import ToggleSwitch from '$lib/components/ToggleSwitch.svelte';
+  import TransactionReceipt from '$lib/components/TransactionReceipt.svelte';
   import type { Beneficiary, Transaction } from '$lib/types';
 
   const presets = [100, 200, 500, 1000, 2000, 5000];
@@ -22,7 +23,7 @@
   let autoDetect = true;
   let detectionMissed = false;
 
-  let step: 'form' | 'confirm' | 'success' = 'form';
+  let step: 'form' | 'confirm' | 'success' | 'failed' = 'form';
   let submitting = false;
   let completedTx: Transaction | null = null;
 
@@ -30,9 +31,6 @@
   $: pkg = $currentProfile?.package ?? 'smart_user';
   $: chargedAmount = amount ? applyPackagePricing(amount, 'airtime', pkg) : 0;
 
-  // Auto-detect runs whenever the number changes, but only while the
-  // toggle is on — a manual network tap (below) turns it off, since
-  // that's the user overriding detection (e.g. after porting).
   $: if (autoDetect && phoneNumber.length === 11) {
     const detected = detectNetwork(phoneNumber);
     if (detected) {
@@ -84,15 +82,28 @@
         return;
       }
       completedTx = result.transaction;
-      showToast(`${formatNaira(chargedAmount)} airtime sent to ${phoneNumber}`);
-      step = 'success';
-    }, 500);
+      if (result.transaction.status === 'failed') {
+        step = 'failed';
+      } else {
+        showToast(`${formatNaira(chargedAmount)} airtime sent to ${phoneNumber}`);
+        step = 'success';
+      }
+    }, 700);
+  }
+
+  function resetForm() {
+    phoneNumber = '';
+    amount = null;
+    completedTx = null;
+    step = 'form';
   }
 </script>
 
 <svelte:head><title>Buy airtime — Stefanx</title></svelte:head>
 
-<PageHeader title="Buy airtime" />
+{#if step !== 'success' && step !== 'failed'}
+  <PageHeader title="Buy airtime" />
+{/if}
 
 {#if step === 'form'}
   <div class="px-4 py-5">
@@ -195,31 +206,46 @@
     onBack={() => (step = 'form')}
   />
 {:else if step === 'success' && completedTx}
-  <div class="px-4 py-5">
-    <div class="mb-5 rounded-2xl bg-white p-6 text-center shadow-sm">
-      <div class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-fanu-50 text-2xl">✓</div>
-      <p class="font-display text-lg font-semibold text-ink">Airtime sent</p>
-      <p class="mt-1 text-sm text-ink/50">{formatNaira(completedTx.amount)} to {phoneNumber}</p>
+  <TransactionReceipt
+    status="success"
+    title="Purchase Successful!"
+    subtitle="Your airtime has been credited instantly"
+    reference={completedTx.reference}
+    rows={[
+      { label: 'Service / Product', value: `${network} Airtime` },
+      { label: 'Recipient', value: phoneNumber },
+      { label: 'Amount Charged', value: `-${formatNaira(completedTx.amount)}`, emphasis: true },
+      { label: 'Transaction Date', value: formatDate(completedTx.createdAt) }
+    ]}
+    shareText={`FANU receipt\n${network} Airtime\nTo: ${phoneNumber}\nAmount: ${formatNaira(completedTx.amount)}\nRef: ${completedTx.reference}`}
+    onDone={() => goto('/dashboard')}
+    onBuyAgain={resetForm}
+  />
+  {#if !isBeneficiarySaved('phone', phoneNumber)}
+    <div class="mx-auto mb-6 max-w-sm px-4">
+      <SaveBeneficiaryPrompt
+        kind="phone"
+        value={phoneNumber}
+        extra={network ?? undefined}
+        valueLabel={phoneNumber}
+        onDone={() => {}}
+      />
     </div>
-
-    {#if !isBeneficiarySaved('phone', phoneNumber)}
-      <div class="mb-5">
-        <SaveBeneficiaryPrompt
-          kind="phone"
-          value={phoneNumber}
-          extra={network ?? undefined}
-          valueLabel={phoneNumber}
-          onDone={() => goto('/dashboard')}
-        />
-      </div>
-    {/if}
-
-    <button
-      type="button"
-      on:click={() => goto('/dashboard')}
-      class="w-full rounded-xl border border-fanu-100 py-3 text-sm font-semibold text-ink/70 transition hover:bg-fanu-50"
-    >
-      Back to dashboard
-    </button>
-  </div>
+  {/if}
+{:else if step === 'failed' && completedTx}
+  <TransactionReceipt
+    status="failed"
+    title="Transaction Failed"
+    subtitle="Unable to complete your airtime purchase. Please try again."
+    reference={completedTx.reference}
+    rows={[
+      { label: 'Service / Product', value: `${network} Airtime` },
+      { label: 'Recipient', value: phoneNumber },
+      { label: 'Amount', value: formatNaira(completedTx.amount) }
+    ]}
+    shareText={`FANU receipt\n${network} Airtime — Failed\nTo: ${phoneNumber}\nRef: ${completedTx.reference}`}
+    onDone={() => goto('/dashboard')}
+    onRetry={confirmPurchase}
+    retrying={submitting}
+  />
 {/if}

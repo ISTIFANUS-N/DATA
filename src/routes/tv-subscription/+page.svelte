@@ -5,12 +5,13 @@
   import { mockValidateAccount, type ValidationResult } from '$lib/validation';
   import { applyPackagePricing, packageLabel } from '$lib/pricing';
   import { showToast } from '$lib/stores/toast';
-  import { formatNaira } from '$lib/format';
+  import { formatNaira, formatDate } from '$lib/format';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import PurchaseConfirm from '$lib/components/PurchaseConfirm.svelte';
   import SaveBeneficiaryPrompt from '$lib/components/SaveBeneficiaryPrompt.svelte';
   import BeneficiaryChips from '$lib/components/BeneficiaryChips.svelte';
   import ValidationStatus from '$lib/components/ValidationStatus.svelte';
+  import TransactionReceipt from '$lib/components/TransactionReceipt.svelte';
   import type { Beneficiary, Transaction } from '$lib/types';
 
   const providers = ['DSTV', 'GOTV', 'STARTIMES'] as const;
@@ -18,6 +19,7 @@
   let provider: (typeof providers)[number] = 'DSTV';
   let smartcardNumber = '';
   let selectedPlan: CablePlan | null = null;
+  let confirmedPlan: CablePlan | null = null;
   let error = '';
 
   let validationState: 'idle' | 'validating' | 'valid' | 'invalid' = 'idle';
@@ -25,7 +27,7 @@
   let customerName = '';
   let validationToken = 0;
 
-  let step: 'form' | 'confirm' | 'success' = 'form';
+  let step: 'form' | 'confirm' | 'success' | 'failed' = 'form';
   let submitting = false;
   let completedTx: Transaction | null = null;
 
@@ -79,11 +81,12 @@
   function confirmPurchase() {
     error = '';
     submitting = true;
+    const plan = confirmedPlan ?? selectedPlan!;
+    confirmedPlan = plan;
     setTimeout(() => {
-      const plan = selectedPlan!;
       const result = purchaseService({
         type: 'cable',
-        amount: chargedPrice,
+        amount: applyPackagePricing(plan.price, 'cable', pkg),
         description: `${plan.packageName} · ${smartcardNumber}`,
         meta: { provider, smartcardNumber, planId: plan.id, customerName }
       });
@@ -95,15 +98,30 @@
         return;
       }
       completedTx = result.transaction;
-      showToast(`${plan.packageName} renewed for ${smartcardNumber}`);
-      step = 'success';
-    }, 500);
+      if (result.transaction.status === 'failed') {
+        step = 'failed';
+      } else {
+        showToast(`${plan.packageName} renewed for ${smartcardNumber}`);
+        step = 'success';
+      }
+    }, 700);
+  }
+
+  function resetForm() {
+    smartcardNumber = '';
+    selectedPlan = null;
+    confirmedPlan = null;
+    validationState = 'idle';
+    completedTx = null;
+    step = 'form';
   }
 </script>
 
 <svelte:head><title>Cable TV subscription — Stefanx</title></svelte:head>
 
-<PageHeader title="Cable TV" />
+{#if step !== 'success' && step !== 'failed'}
+  <PageHeader title="Cable TV" />
+{/if}
 
 {#if step === 'form'}
   <div class="px-4 py-5">
@@ -185,32 +203,48 @@
     onConfirm={confirmPurchase}
     onBack={() => (step = 'form')}
   />
-{:else if step === 'success' && completedTx}
-  <div class="px-4 py-5">
-    <div class="mb-5 rounded-2xl bg-white p-6 text-center shadow-sm">
-      <div class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-fanu-50 text-2xl">✓</div>
-      <p class="font-display text-lg font-semibold text-ink">Subscription renewed</p>
-      <p class="mt-1 text-sm text-ink/50">{selectedPlan?.packageName} for {smartcardNumber}</p>
+{:else if step === 'success' && completedTx && confirmedPlan}
+  <TransactionReceipt
+    status="success"
+    title="Purchase Successful!"
+    subtitle="Your subscription has been renewed"
+    reference={completedTx.reference}
+    rows={[
+      { label: 'Service / Product', value: confirmedPlan.packageName },
+      { label: 'Smartcard / IUC', value: smartcardNumber },
+      { label: 'Customer name', value: customerName },
+      { label: 'Amount Charged', value: `-${formatNaira(completedTx.amount)}`, emphasis: true },
+      { label: 'Transaction Date', value: formatDate(completedTx.createdAt) }
+    ]}
+    shareText={`FANU receipt\n${confirmedPlan.packageName}\nSmartcard: ${smartcardNumber}\nAmount: ${formatNaira(completedTx.amount)}\nRef: ${completedTx.reference}`}
+    onDone={() => goto('/dashboard')}
+    onBuyAgain={resetForm}
+  />
+  {#if !isBeneficiarySaved('smartcard', smartcardNumber)}
+    <div class="mx-auto mb-6 max-w-sm px-4">
+      <SaveBeneficiaryPrompt
+        kind="smartcard"
+        value={smartcardNumber}
+        extra={provider}
+        valueLabel={`smartcard ${smartcardNumber}`}
+        onDone={() => {}}
+      />
     </div>
-
-    {#if !isBeneficiarySaved('smartcard', smartcardNumber)}
-      <div class="mb-5">
-        <SaveBeneficiaryPrompt
-          kind="smartcard"
-          value={smartcardNumber}
-          extra={provider}
-          valueLabel={`smartcard ${smartcardNumber}`}
-          onDone={() => goto('/dashboard')}
-        />
-      </div>
-    {/if}
-
-    <button
-      type="button"
-      on:click={() => goto('/dashboard')}
-      class="w-full rounded-xl border border-fanu-100 py-3 text-sm font-semibold text-ink/70 transition hover:bg-fanu-50"
-    >
-      Back to dashboard
-    </button>
-  </div>
+  {/if}
+{:else if step === 'failed' && completedTx && confirmedPlan}
+  <TransactionReceipt
+    status="failed"
+    title="Transaction Failed"
+    subtitle="Unable to complete your cable TV subscription. Please try again."
+    reference={completedTx.reference}
+    rows={[
+      { label: 'Service / Product', value: confirmedPlan.packageName },
+      { label: 'Smartcard / IUC', value: smartcardNumber },
+      { label: 'Amount', value: formatNaira(completedTx.amount) }
+    ]}
+    shareText={`FANU receipt\n${confirmedPlan.packageName} — Failed\nSmartcard: ${smartcardNumber}\nRef: ${completedTx.reference}`}
+    onDone={() => goto('/dashboard')}
+    onRetry={confirmPurchase}
+    retrying={submitting}
+  />
 {/if}
