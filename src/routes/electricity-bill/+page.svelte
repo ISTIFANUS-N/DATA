@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { serviceToggles } from '$lib/stores/serviceStatus';
+  import ServiceUnavailable from '$lib/components/ServiceUnavailable.svelte';
   import { goto } from '$app/navigation';
   import { DISCOS } from '$lib/data/catalog';
   import { purchaseService, walletBalance, beneficiaries, isBeneficiarySaved } from '$lib/stores/db';
@@ -41,7 +43,8 @@
     const token = ++validationToken;
     validationState = 'validating';
 
-    setTimeout(async () => {
+    // timeout removed — now truly async
+    (async () => {
       const result: ValidationResult = await mockValidateAccount(value, 10);
       if (token !== validationToken) return;
       if (result.valid) {
@@ -51,7 +54,7 @@
         validationState = 'invalid';
         validationError = result.error ?? '';
       }
-    }, 450);
+    })();
   }
 
   function pickBeneficiary(b: Beneficiary) {
@@ -68,11 +71,12 @@
     step = 'confirm';
   }
 
-  function confirmPurchase() {
+  async function confirmPurchase() {
     error = '';
     submitting = true;
-    setTimeout(() => {
-      const result = purchaseService({
+    // timeout removed — now truly async
+    (async () => {
+      const result = await purchaseService({
         type: 'electricity',
         amount: amount!,
         description: `${disco} · ${meterType} · ${meterNumber}`,
@@ -92,7 +96,7 @@
         showToast(`Token sent for meter ${meterNumber}`);
         step = 'success';
       }
-    }, 700);
+    })();
   }
 
   function resetForm() {
@@ -102,14 +106,22 @@
     completedTx = null;
     step = 'form';
   }
+  $: serviceToggle = $serviceToggles.find(s => s.key === 'electricity');
+  $: serviceEnabled = serviceToggle?.isEnabled ?? true;
+  $: serviceReason = serviceToggle?.disabledReason ?? '';
+
 </script>
 
 <svelte:head><title>Pay electricity bill — Stefanx</title></svelte:head>
 
 {#if step !== 'success' && step !== 'failed'}
-  <PageHeader title="Electricity bill" />
+  <PageHeader title="Electricity" />
 {/if}
 
+
+{#if !serviceEnabled}
+  <ServiceUnavailable label="Electricity" reason={serviceReason} />
+{:else}
 {#if step === 'form'}
   <div class="px-4 py-5">
     <label class="mb-5 flex flex-col gap-1.5">
@@ -238,4 +250,5 @@
     onRetry={confirmPurchase}
     retrying={submitting}
   />
+{/if}
 {/if}

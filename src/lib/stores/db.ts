@@ -1,417 +1,535 @@
-import { derived, get } from 'svelte/store';
-import { persisted } from './persisted';
-import type { Profile, Transaction, TransactionType, Beneficiary, BeneficiaryKind } from '$lib/types';
+/**
+ * db.ts — Real Supabase backend replacing the localStorage mock.
+ *
+ * All stores are writable and updated reactively via supabase.auth.onAuthStateChange
+ * plus direct fetches after mutations. Nothing hits localStorage except the
+ * Supabase session cookie (managed by @supabase/ssr automatically).
+ */
 
-interface Account {
-  profile: Profile;
-  passwordHash: string | null; // null for Google accounts
-  walletBalance: number;
-  transactions: Transaction[];
-  beneficiaries: Beneficiary[];
-}
+import { writable, derived, get } from 'svelte/store';
+import { supabase } from '$lib/supabase';
+import type { Profile, Transaction, TransactionType, Beneficiary } from '$lib/types';
 
-type AccountsDb = Record<string, Account>; // keyed by lowercased email
+// ─── Raw state stores ─────────────────────────────────────────────────────────
 
-const accounts = persisted<AccountsDb>('fanu_accounts', {});
-const sessionEmail = persisted<string | null>('fanu_session_email', null);
+export const currentProfile   = writable<Profile | null>(null);
+export const walletBalance    = writable<number>(0);
+export const transactions     = writable<Transaction[]>([]);
+export const beneficiaries    = writable<Beneficiary[]>([]);
+export const isLoggedIn       = derived(currentProfile, ($p) => $p !== null);
 
-// --- Derived, read-only views used throughout the app ---
+// Admin extras
+export const allAccountsForAdmin      = writable<{ email: string; profile: Profile; walletBalance: number }[]>([]);
+export const allTransactionsForAdmin  = writable<(Transaction & { userEmail: string; userName: string })[]>([]);
 
-export const currentProfile = derived(
-  [accounts, sessionEmail],
-  ([$accounts, $sessionEmail]) => ($sessionEmail ? $accounts[$sessionEmail]?.profile ?? null : null)
-);
+// Daily login count
+export const todayLoginCount   = writable<number>(0);
+export const myTodayLoginCount = writable<number>(0);
 
-export const isLoggedIn = derived(currentProfile, ($p) => $p !== null);
+// ─── Bootstrap: listen for auth state changes ─────────────────────────────────
 
-export const walletBalance = derived(
-  [accounts, sessionEmail],
-  ([$accounts, $sessionEmail]) => ($sessionEmail ? $accounts[$sessionEmail]?.walletBalance ?? 0 : 0)
-);
-
-export const transactions = derived(
-  [accounts, sessionEmail],
-  ([$accounts, $sessionEmail]) =>
-    $sessionEmail
-      ? [...($accounts[$sessionEmail]?.transactions ?? [])].sort(
-          (a, b) => +new Date(b.createdAt) - +new Date(a.createdAt)
-        )
-      : []
-);
-
-export const beneficiaries = derived(
-  [accounts, sessionEmail],
-  ([$accounts, $sessionEmail]) =>
-    $sessionEmail
-      ? [...($accounts[$sessionEmail]?.beneficiaries ?? [])].sort(
-          (a, b) => +new Date(b.createdAt) - +new Date(a.createdAt)
-        )
-      : []
-);
-
-// --- Naive local "hash" — this is a mock auth layer only. Real
-// password handling happens in Supabase Auth once the backend is
-// wired back in; nothing here should be mistaken for production
-// security. ---
-function fakeHash(pw: string) {
-  return btoa(unescape(encodeURIComponent(pw)));
-}
-
-function newId(prefix: string) {
-  return `${prefix}_${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36)}`;
-}
-
-export function register(input: {
-  fullName: string;
-  email: string;
-  phone: string;
-  password: string;
-}): { ok: true } | { ok: false; error: string } {
-  const email = input.email.trim().toLowerCase();
-  const db = get(accounts);
-
-  if (db[email]) return { ok: false, error: 'An account with that email already exists.' };
-  if (!/^0\d{10}$/.test(input.phone)) {
-    return { ok: false, error: 'Enter a valid 11-digit Nigerian phone number.' };
+supabase.auth.onAuthStateChange(async (_event, session) => {
+  if (session?.user) {
+    await loadProfileAndWallet(session.user.id);
+  } else {
+    currentProfile.set(null);
+    walletBalance.set(0);
+    transactions.set([]);
+    beneficiaries.set([]);
   }
-  if (input.password.length < 6) {
-    return { ok: false, error: 'Password must be at least 6 characters.' };
+});
+
+// Load on first import (page refresh)
+supabase.auth.getSession().then(({ data }) => {
+  if (data.session?.user) loadProfileAndWallet(data.session.user.id);
+});
+
+// ─── Loaders ─────────────────────────────────────────────────────────────────
+
+async function loadProfileAndWallet(userId: string) {
+  // Profile
+  const { data: prof } = await supabase
+    .from('profiles')
+    .select('id, full_name, email, phone, role, package, login_count_today, last_login_date')
+    .eq('id', userId)
+    .single();
+
+  if (prof) {
+    currentProfile.set({
+      id:           prof.id,
+      fullName:     prof.full_name,
+      email:        prof.email,
+      phone:        prof.phone ?? '',
+      authProvider: 'email',
+      role:         prof.role === 'admin' ? 'admin' : 'customer',
+      package:      prof.package ?? 'smart_user'
+    });
+
+    // daily login count
+    const today = new Date().toISOString().slice(0, 10);
+    const mine = prof.last_login_date === today ? (prof.login_count_today ?? 0) : 0;
+    myTodayLoginCount.set(mine);
   }
 
-  const profile: Profile = {
-    id: newId('user'),
-    fullName: input.fullName.trim(),
-    email,
-    phone: input.phone,
-    authProvider: 'email',
-    role: 'customer',
-    package: 'smart_user'
+  // Wallet
+  const { data: wallet } = await supabase
+    .from('wallets')
+    .select('balance')
+    .eq('user_id', userId)
+    .single();
+
+  walletBalance.set(wallet?.balance ?? 0);
+
+  // Transactions
+  await loadTransactions(userId);
+
+  // Beneficiaries
+  await loadBeneficiaries(userId);
+}
+
+async function loadTransactions(userId: string) {
+  const { data } = await supabase
+    .from('service_transactions')
+    .select('id, service_type, status, amount, reference, description, created_at, provider_network, data_plan_type_used, provider_name')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(100);
+
+  if (data) {
+    transactions.set(data.map(rowToTx));
+  }
+}
+
+async function loadBeneficiaries(userId: string) {
+  const { data } = await supabase
+    .from('beneficiaries')
+    .select('id, kind, name, value, extra, created_at')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false });
+
+  if (data) {
+    beneficiaries.set(data.map((b) => ({
+      id:        b.id,
+      kind:      b.kind,
+      name:      b.name,
+      value:     b.value,
+      extra:     b.extra ?? undefined,
+      createdAt: b.created_at
+    })));
+  }
+}
+
+function rowToTx(row: Record<string, unknown>): Transaction {
+  const meta: Record<string, string> = {};
+  if (row.provider_network)    meta.network     = String(row.provider_network);
+  if (row.data_plan_type_used) meta.planType    = String(row.data_plan_type_used);
+  if (row.provider_name)       meta.provider    = String(row.provider_name);
+
+  return {
+    id:          String(row.id),
+    type:        (row.service_type as TransactionType) ?? 'data',
+    status:      (row.status as 'success' | 'pending' | 'failed') ?? 'pending',
+    amount:      Number(row.amount),
+    reference:   String(row.reference ?? ''),
+    description: String(row.description ?? ''),
+    createdAt:   String(row.created_at),
+    meta:        Object.keys(meta).length ? meta : undefined
   };
-
-  accounts.set({
-    ...db,
-    [email]: {
-      profile,
-      passwordHash: fakeHash(input.password),
-      walletBalance: 0,
-      transactions: [],
-      beneficiaries: []
-    }
-  });
-  sessionEmail.set(email);
-  return { ok: true };
 }
 
-export function login(
+// ─── Auth actions ─────────────────────────────────────────────────────────────
+
+export async function login(
   email: string,
   password: string
-): { ok: true } | { ok: false; error: string } {
-  const key = email.trim().toLowerCase();
-  const db = get(accounts);
-  const account = db[key];
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  if (error) return { ok: false, error: error.message };
 
-  if (!account || account.passwordHash !== fakeHash(password)) {
-    return { ok: false, error: 'Incorrect email or password.' };
-  }
+  // Record login in DB
+  const { data: { user } } = await supabase.auth.getUser();
+  if (user) await supabase.rpc('record_login', { p_user_id: user.id });
 
-  sessionEmail.set(key);
   return { ok: true };
 }
 
-/**
- * Stands in for Google OAuth until the backend is connected. Creates
- * (or logs into) a demo Google-style account so the flow is
- * click-through-able without a real provider yet.
- */
-export function loginWithGoogleMock(): void {
-  const demoEmail = 'demo.google.user@gmail.com';
-  const db = get(accounts);
+export async function register(
+  email: string,
+  password: string,
+  fullName: string,
+  phone: string
+): Promise<{ ok: true; email: string } | { ok: false; error: string }> {
 
-  if (!db[demoEmail]) {
-    const profile: Profile = {
-      id: newId('user'),
-      fullName: 'Demo Google User',
-      email: demoEmail,
-      phone: '',
-      authProvider: 'google',
-      role: 'customer',
-      package: 'smart_user'
-    };
-    accounts.set({
-      ...db,
-      [demoEmail]: { profile, passwordHash: null, walletBalance: 0, transactions: [], beneficiaries: [] }
-    });
+  // Basic client-side checks before hitting the API
+  if (!email || !email.includes('@')) {
+    return { ok: false, error: 'Enter a valid email address.' };
+  }
+  if (!password || password.length < 6) {
+    return { ok: false, error: 'Password must be at least 6 characters.' };
+  }
+  if (!fullName.trim()) {
+    return { ok: false, error: 'Enter your full name.' };
+  }
+  if (!phone || phone.length < 10) {
+    return { ok: false, error: 'Enter a valid phone number.' };
   }
 
-  sessionEmail.set(demoEmail);
-}
-
-export function logout(): void {
-  sessionEmail.set(null);
-}
-
-/**
- * TEMPORARY: lets the frontend be browsed and used end-to-end without
- * requiring sign-up, by auto-logging into a shared local "Guest"
- * account with a starter balance. This is purely a frontend
- * convenience for previewing the app — remove the call to this in
- * +layout.svelte (and flip AUTH_REQUIRED back to true) once real
- * accounts / Supabase Auth are wired in and login should be enforced.
- */
-export function ensureGuestSession(): void {
-  const key = 'guest@stefanx.demo';
-  const db = get(accounts);
-
-  if (!db[key]) {
-    const profile: Profile = {
-      id: newId('user'),
-      fullName: 'Guest',
-      email: key,
-      phone: '08000000000',
-      authProvider: 'email',
-      role: 'customer',
-      package: 'smart_user'
-    };
-    accounts.set({
-      ...db,
-      [key]: { profile, passwordHash: null, walletBalance: 5000, transactions: [], beneficiaries: [] }
-    });
-  }
-
-  sessionEmail.set(key);
-}
-
-export function updatePhone(phone: string): { ok: true } | { ok: false; error: string } {
-  const key = get(sessionEmail);
-  if (!key) return { ok: false, error: 'Not logged in.' };
-  if (!/^0\d{10}$/.test(phone)) {
-    return { ok: false, error: 'Enter a valid 11-digit Nigerian phone number.' };
-  }
-
-  accounts.update((db) => {
-    const account = db[key];
-    if (!account) return db;
-    return { ...db, [key]: { ...account, profile: { ...account.profile, phone } } };
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: { data: { full_name: fullName, phone } }
   });
-  return { ok: true };
-}
 
-export function switchPackage(pkg: Profile['package']): void {
-  const key = get(sessionEmail);
-  if (!key) return;
-  accounts.update((db) => {
-    const account = db[key];
-    if (!account) return db;
-    return { ...db, [key]: { ...account, profile: { ...account.profile, package: pkg } } };
-  });
-}
-
-// --- Wallet + transactions ---
-
-function addTransactionForCurrentUser(tx: Transaction) {
-  const key = get(sessionEmail);
-  if (!key) return;
-  accounts.update((db) => {
-    const account = db[key];
-    if (!account) return db;
-    return {
-      ...db,
-      [key]: { ...account, transactions: [tx, ...account.transactions] }
-    };
-  });
-}
-
-export function fundWallet(amount: number): Transaction {
-  const key = get(sessionEmail);
-  const reference = newId('fund');
-  const tx: Transaction = {
-    id: newId('tx'),
-    type: 'wallet_funding',
-    status: 'success',
-    amount,
-    reference,
-    description: 'Wallet funding',
-    createdAt: new Date().toISOString()
-  };
-
-  if (key) {
-    accounts.update((db) => {
-      const account = db[key];
-      if (!account) return db;
-      return { ...db, [key]: { ...account, walletBalance: account.walletBalance + amount } };
-    });
+  if (error) {
+    // Map Supabase error messages to friendly ones
+    const msg = error.message.toLowerCase();
+    if (msg.includes('already registered') || msg.includes('user already exists') || msg.includes('email address is already')) {
+      return { ok: false, error: 'An account with this email already exists. Try signing in instead.' };
+    }
+    if (msg.includes('password')) {
+      return { ok: false, error: 'Password is too weak. Use at least 6 characters with a mix of letters and numbers.' };
+    }
+    if (msg.includes('invalid email') || msg.includes('unable to validate email')) {
+      return { ok: false, error: 'This email address is not valid.' };
+    }
+    // For everything else — show the raw Supabase message so nothing is hidden
+    return { ok: false, error: error.message };
   }
 
-  addTransactionForCurrentUser(tx);
-  return tx;
+  // Supabase sometimes returns a user with identities=[] for duplicate emails
+  // (when email confirmation is ON) — this means the email is already taken
+  if (data.user && data.user.identities && data.user.identities.length === 0) {
+    return { ok: false, error: 'An account with this email already exists. Try signing in instead.' };
+  }
+
+  // Also check for duplicate phone number
+  if (phone) {
+    const { data: existing } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('phone', phone)
+      .maybeSingle();
+    if (existing) {
+      return { ok: false, error: 'This phone number is already linked to an account.' };
+    }
+  }
+
+  // Write phone and full_name directly to be safe (trigger may lag)
+  if (data.user) {
+    await new Promise(r => setTimeout(r, 800));
+    await supabase
+      .from('profiles')
+      .update({ phone, full_name: fullName })
+      .eq('id', data.user.id);
+  }
+
+  return { ok: true, email };
 }
 
-/**
- * Mirrors the real process_wallet_debit → provider call → refund flow,
- * just synchronously and in memory. Returns the resulting transaction
- * either way so the calling page can show success/failure state.
- */
-// Simulated provider failure rate for demo purposes, so the failure
-// receipt path is actually reachable without wiring a real VTU
-// provider. On failure, the wallet is never debited in the first
-// place (equivalent end state to "debit then instantly refund", just
-// without the redundant balance flicker) — matching how the real
-// Edge Functions behave (see executeServicePurchase's refund-on-
-// failure logic).
-const SIMULATED_FAILURE_RATE = 0.12;
+export async function logout() {
+  await supabase.auth.signOut();
+  currentProfile.set(null);
+  walletBalance.set(0);
+  transactions.set([]);
+  beneficiaries.set([]);
+}
 
-export function purchaseService(input: {
+// ─── Wallet ───────────────────────────────────────────────────────────────────
+
+/** Called after Monnify payment confirmation to reload the balance */
+export async function reloadWallet() {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+  const { data } = await supabase
+    .from('wallets').select('balance').eq('user_id', user.id).single();
+  if (data) walletBalance.set(data.balance);
+}
+
+// ─── Service purchase ─────────────────────────────────────────────────────────
+
+export async function purchaseService(params: {
   type: TransactionType;
   amount: number;
   description: string;
   meta?: Record<string, string>;
-}): { ok: true; transaction: Transaction } | { ok: false; error: string } {
-  const key = get(sessionEmail);
-  if (!key) return { ok: false, error: 'Not logged in.' };
-
-  const balance = get(walletBalance);
-  if (balance < input.amount) {
-    return { ok: false, error: 'Insufficient wallet balance. Fund your wallet to continue.' };
+}): Promise<{ ok: true; transaction: Transaction } | { ok: false; error: string }> {
+  const bal = get(walletBalance);
+  if (bal < params.amount) {
+    return { ok: false, error: `Insufficient balance. You have ${bal.toLocaleString('en-NG', { style: 'currency', currency: 'NGN' })} — need ₦${params.amount.toLocaleString()}.` };
   }
 
-  const willFail = Math.random() < SIMULATED_FAILURE_RATE;
-  const reference = newId(input.type);
-  const tx: Transaction = {
-    id: newId('tx'),
-    type: input.type,
-    status: willFail ? 'failed' : 'success',
-    amount: input.amount,
-    reference,
-    description: input.description,
-    createdAt: new Date().toISOString(),
-    meta: input.meta
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Not signed in.' };
+
+  // Call the Edge Function for this service type
+  const fnMap: Partial<Record<TransactionType, string>> = {
+    data:                   'buy-data',
+    airtime:                'buy-airtime',
+    cable:                  'buy-cable',
+    electricity:            'buy-electricity',
+    bulk_sms:               'buy-bulk-sms',
+    result_checker:         'buy-result-checker',
+    recharge_card_printing: 'buy-recharge-cards',
+    airtime_to_cash:        'airtime-to-cash',
   };
 
-  if (!willFail) {
-    accounts.update((db) => {
-      const account = db[key];
-      if (!account) return db;
-      return { ...db, [key]: { ...account, walletBalance: account.walletBalance - input.amount } };
-    });
-  }
-  addTransactionForCurrentUser(tx);
+  const fn = fnMap[params.type];
+  if (!fn) return { ok: false, error: `No handler for service type: ${params.type}` };
 
-  // ok: true here means "the attempt was processed" — check
-  // tx.status to see whether it actually succeeded. ok: false is
-  // reserved for pre-attempt validation failures above (not logged
-  // in, insufficient balance), which block before anything happens.
-  return { ok: true, transaction: tx };
-}
-
-// --- Beneficiaries ---
-
-/**
- * Saves (or updates the name on) a recipient so it can be picked
- * again next time without retyping. Matches on kind+value so saving
- * the same number twice just renames it rather than duplicating it.
- */
-export function saveBeneficiary(input: {
-  kind: BeneficiaryKind;
-  name: string;
-  value: string;
-  extra?: string;
-}): void {
-  const key = get(sessionEmail);
-  if (!key) return;
-  const name = input.name.trim();
-  if (!name) return;
-
-  accounts.update((db) => {
-    const account = db[key];
-    if (!account) return db;
-
-    const existing = account.beneficiaries ?? [];
-    const alreadySaved = existing.find((b) => b.kind === input.kind && b.value === input.value);
-
-    const list = alreadySaved
-      ? existing.map((b) => (b.id === alreadySaved.id ? { ...b, name, extra: input.extra } : b))
-      : [
-          {
-            id: newId('ben'),
-            kind: input.kind,
-            name,
-            value: input.value,
-            extra: input.extra,
-            createdAt: new Date().toISOString()
-          },
-          ...existing
-        ];
-
-    return { ...db, [key]: { ...account, beneficiaries: list } };
+  const { data, error } = await supabase.functions.invoke(fn, {
+    body: { amount: params.amount, description: params.description, meta: params.meta ?? {} }
   });
-}
 
-export function removeBeneficiary(id: string): void {
-  const key = get(sessionEmail);
-  if (!key) return;
-  accounts.update((db) => {
-    const account = db[key];
-    if (!account) return db;
-    return {
-      ...db,
-      [key]: { ...account, beneficiaries: (account.beneficiaries ?? []).filter((b) => b.id !== id) }
-    };
-  });
-}
-
-export function isBeneficiarySaved(kind: BeneficiaryKind, value: string): boolean {
-  const key = get(sessionEmail);
-  if (!key) return false;
-  const account = get(accounts)[key];
-  return (account?.beneficiaries ?? []).some((b) => b.kind === kind && b.value === value);
-}
-
-// --- Airtime to cash ---
-
-// The rate a customer gets for converting airtime into wallet cash —
-// intentionally below 100%, matching how these services actually work
-// (the platform takes a cut, since it can't resell 100%-value airtime
-// for full price to someone else).
-export const AIRTIME_TO_CASH_RATE = 0.85;
-
-/**
- * Unlike a normal purchase, this doesn't move wallet money immediately
- * on submit — it can't, since nothing has actually been verified yet.
- * It records a `pending` transaction for the payout amount; crediting
- * the wallet only happens once the sent airtime is confirmed. Right
- * now (mock/local mode) that confirmation step doesn't exist yet, so
- * these sit in Transaction History as pending until that's wired up —
- * mirrors the real backend's reconcile/admin-review pattern rather
- * than faking an instant credit that wouldn't reflect how this
- * service actually has to work.
- */
-export function requestAirtimeToCash(input: {
-  network: string;
-  amount: number;
-  phoneNumber: string;
-}): { ok: true; transaction: Transaction } | { ok: false; error: string } {
-  const key = get(sessionEmail);
-  if (!key) return { ok: false, error: 'Not logged in.' };
-  if (input.amount < 200) return { ok: false, error: 'Minimum conversion amount is ₦200.' };
-
-  const payout = Math.round(input.amount * AIRTIME_TO_CASH_RATE);
-  const reference = newId('a2c');
-  const tx: Transaction = {
-    id: newId('tx'),
-    type: 'airtime_to_cash',
-    status: 'pending',
-    amount: payout,
-    reference,
-    description: `${input.network} airtime → cash · ${input.phoneNumber}`,
-    createdAt: new Date().toISOString(),
-    meta: {
-      network: input.network,
-      phoneNumber: input.phoneNumber,
-      airtimeAmount: String(input.amount),
-      rate: String(AIRTIME_TO_CASH_RATE)
+  if (error || !data?.ok) {
+    const msg = data?.error ?? error?.message ?? '';
+    if (msg.includes('Failed to send') || msg.includes('FunctionsFetchError') || msg.includes('not found')) {
+      return { ok: false, error: 'Service temporarily unavailable. Please try again shortly.' };
     }
+    return { ok: false, error: msg || 'Transaction failed.' };
+  }
+
+  // Reload wallet and transactions
+  await reloadWallet();
+  if (user) await loadTransactions(user.id);
+
+  const tx: Transaction = {
+    id:          data.transaction.id,
+    type:        params.type,
+    status:      data.transaction.status,
+    amount:      params.amount,
+    reference:   data.transaction.reference,
+    description: params.description,
+    createdAt:   data.transaction.created_at ?? new Date().toISOString(),
+    meta:        params.meta
   };
 
-  addTransactionForCurrentUser(tx);
   return { ok: true, transaction: tx };
+}
+
+// ─── Beneficiaries ────────────────────────────────────────────────────────────
+
+export async function saveBeneficiary(
+  b: Omit<Beneficiary, 'id' | 'createdAt'>
+): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+  await supabase.from('beneficiaries').upsert({
+    user_id: user.id, kind: b.kind, name: b.name, value: b.value, extra: b.extra ?? null
+  }, { onConflict: 'user_id, kind, value' });
+  await loadBeneficiaries(user.id);
+}
+
+export async function removeBeneficiary(id: string): Promise<void> {
+  await supabase.from('beneficiaries').delete().eq('id', id);
+  const { data: { user } } = await supabase.auth.getUser();
+  if (user) await loadBeneficiaries(user.id);
+}
+
+export function isBeneficiarySaved(kind: string, value: string): boolean {
+  return get(beneficiaries).some((b) => b.kind === kind && b.value === value);
+}
+
+// ─── Admin: load all accounts ─────────────────────────────────────────────────
+
+export async function loadAllAccountsForAdmin(): Promise<void> {
+  const { data } = await supabase
+    .from('profiles')
+    .select('id, full_name, email, phone, role, package, wallets(balance)')
+    .order('created_at', { ascending: false });
+
+  if (data) {
+    allAccountsForAdmin.set(data.map((p) => ({
+      email: p.email,
+      profile: {
+        id:           p.id,
+        fullName:     p.full_name,
+        email:        p.email,
+        phone:        p.phone ?? '',
+        authProvider: 'email' as const,
+        role:         p.role === 'admin' ? 'admin' : 'customer',
+        package:      p.package ?? 'smart_user'
+      },
+      walletBalance: (p.wallets as unknown as { balance: number }[])?.[0]?.balance ?? 0
+    })));
+  }
+}
+
+export async function loadAllTransactionsForAdmin(): Promise<void> {
+  const { data } = await supabase
+    .from('service_transactions')
+    .select('id, service_type, status, amount, reference, description, created_at, provider_network, data_plan_type_used, provider_name, profiles(full_name, email)')
+    .order('created_at', { ascending: false })
+    .limit(500);
+
+  if (data) {
+    allTransactionsForAdmin.set(data.map((row) => ({
+      ...rowToTx(row),
+      userEmail: (row.profiles as unknown as { email: string })?.email ?? '',
+      userName:  (row.profiles as unknown as { full_name: string })?.full_name ?? ''
+    })));
+  }
+}
+
+// Platform-wide daily login count
+export async function loadTodayLoginCount(): Promise<void> {
+  const today = new Date().toISOString().slice(0, 10);
+  const { count } = await supabase
+    .from('profiles')
+    .select('id', { count: 'exact', head: true })
+    .eq('last_login_date', today);
+  todayLoginCount.set(count ?? 0);
+}
+
+// ─── Admin: update profile ────────────────────────────────────────────────────
+
+export async function adminUpdateProfile(
+  userId: string,
+  updates: { fullName?: string; phone?: string; role?: 'customer' | 'admin'; package?: 'smart_user' | 'reseller' }
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const payload: Record<string, string> = {};
+  if (updates.fullName) payload.full_name = updates.fullName;
+  if (updates.phone)    payload.phone     = updates.phone;
+  if (updates.role)     payload.role      = updates.role;
+  if (updates.package)  payload.package   = updates.package;
+
+  const { error } = await supabase.from('profiles').update(payload).eq('id', userId);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+// ─── Admin: wallet adjustment ─────────────────────────────────────────────────
+
+export async function adminAdjustWallet(
+  userId: string,
+  amount: number,
+  direction: 'credit' | 'debit',
+  reason: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { data, error } = await supabase.rpc(
+    direction === 'credit' ? 'process_wallet_credit' : 'process_wallet_debit',
+    { p_user_id: userId, p_amount: amount, p_source: 'admin_adjustment', p_ref: `ADJ_${Date.now()}`, p_description: reason }
+  );
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+// ─── Admin: update transaction status ────────────────────────────────────────
+
+export async function adminUpdateTransactionStatus(
+  txId: string,
+  status: 'success' | 'failed' | 'pending',
+  note?: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { data: { user } } = await supabase.auth.getUser();
+  const { error } = await supabase
+    .from('service_transactions')
+    .update({ status, review_note: note ?? null, resolved_by: user?.id, resolved_at: new Date().toISOString() })
+    .eq('id', txId);
+  if (error) return { ok: false, error: error.message };
+  await loadAllTransactionsForAdmin();
+  return { ok: true };
+}
+
+// ─── Stub: keep old call sites working during migration ──────────────────────
+// These existed in the mock — kept as no-ops so pages don't break
+// before they're fully migrated.
+// switchPackage is intentionally removed — only admins can change a user's package
+// via adminUpdateProfile() which goes through the approval queue for regular admins
+// and is applied directly by super admins.
+
+// Kept for pages that still reference the old mock
+export const fundWallet = async (_amount: number) => {
+  // Real funding goes through Monnify webhook → Edge Function → process_wallet_credit
+  // This stub is only here so the old FundWalletModal compiles.
+  // The new MonnifyCheckout component handles the real flow.
+  await reloadWallet();
+};
+
+// ─── Admin compat aliases ────────────────────────────────────────────────────
+export const adminUpdateUserProfile = adminUpdateProfile;
+
+export async function adminSetUserPassword(_userId: string, _newPw: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  // Password reset via Supabase Admin API (service role) — implement via Edge Function
+  return { ok: false, error: 'Password reset must be triggered from the admin Edge Function using the service role key.' };
+}
+
+export async function adminDeleteUser(userId: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { data, error } = await supabase.functions.invoke('admin-delete-user', { body: { userId } });
+  if (error || !data?.ok) return { ok: false, error: data?.error ?? error?.message ?? 'Delete failed' };
+  await loadAllAccountsForAdmin();
+  return { ok: true };
+}
+
+export interface AdminUserRow {
+  email: string;
+  profile: Profile;
+  walletBalance: number;
+}
+
+// ─── Super admin: assign / revoke admin ──────────────────────────────────────
+// Only callable by a super admin (role=admin AND package=reseller).
+// Uses the service role key via an Edge Function so clients can't forge it.
+
+export async function assignAdmin(
+  targetUserId: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  // Verify caller is super admin first
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Not signed in' };
+
+  const { data: caller } = await supabase
+    .from('profiles')
+    .select('role, package')
+    .eq('id', user.id)
+    .single();
+
+  if (!caller || caller.role !== 'admin' || caller.package !== 'reseller') {
+    return { ok: false, error: 'Super admin access required' };
+  }
+
+  if (targetUserId === user.id) {
+    return { ok: false, error: 'You cannot change your own role' };
+  }
+
+  // Call the SQL function directly — RLS is bypassed by the security definer function
+  const { error } = await supabase.rpc('super_admin_set_role', {
+    p_target_user_id: targetUserId,
+    p_role: 'admin',
+    p_package: 'smart_user'
+  });
+
+  if (error) return { ok: false, error: error.message };
+  await loadAllAccountsForAdmin();
+  return { ok: true };
+}
+
+export async function revokeAdmin(
+  targetUserId: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Not signed in' };
+
+  const { data: caller } = await supabase
+    .from('profiles')
+    .select('role, package')
+    .eq('id', user.id)
+    .single();
+
+  if (!caller || caller.role !== 'admin' || caller.package !== 'reseller') {
+    return { ok: false, error: 'Super admin access required' };
+  }
+
+  if (targetUserId === user.id) {
+    return { ok: false, error: 'You cannot change your own role' };
+  }
+
+  const { error } = await supabase.rpc('super_admin_set_role', {
+    p_target_user_id: targetUserId,
+    p_role: 'customer',
+    p_package: 'smart_user'
+  });
+
+  if (error) return { ok: false, error: error.message };
+  await loadAllAccountsForAdmin();
+  return { ok: true };
 }

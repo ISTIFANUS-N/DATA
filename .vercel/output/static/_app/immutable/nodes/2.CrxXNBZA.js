@@ -1,1 +1,0 @@
-import{a,f as i}from"../chunks/KO9-utDA.js";import"../chunks/aCol-0Iu.js";var n=i('<div class="flex min-h-screen items-center justify-center"><p class="text-sm text-ink/50">Loading…</p></div>');function s(t){var e=n();a(t,e)}export{s as component};

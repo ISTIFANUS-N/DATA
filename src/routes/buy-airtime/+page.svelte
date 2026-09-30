@@ -1,8 +1,10 @@
 <script lang="ts">
+  import { serviceToggles } from '$lib/stores/serviceStatus';
+  import ServiceUnavailable from '$lib/components/ServiceUnavailable.svelte';
   import { goto } from '$app/navigation';
   import { NETWORKS, type Network } from '$lib/data/catalog';
   import { purchaseService, walletBalance, beneficiaries, isBeneficiarySaved, currentProfile } from '$lib/stores/db';
-  import { detectNetwork } from '$lib/network';
+  import { detectNetwork, normalizePhone } from '$lib/network';
   import { applyPackagePricing, packageLabel } from '$lib/pricing';
   import { showToast } from '$lib/stores/toast';
   import { formatNaira, formatDate } from '$lib/format';
@@ -31,16 +33,25 @@
   $: pkg = $currentProfile?.package ?? 'smart_user';
   $: chargedAmount = amount ? applyPackagePricing(amount, 'airtime', pkg) : 0;
 
-  $: if (autoDetect && phoneNumber.length === 11) {
+  $: if (autoDetect) {
     const detected = detectNetwork(phoneNumber);
     if (detected) {
       network = detected;
       detectionMissed = false;
     } else {
-      detectionMissed = true;
+      detectionMissed = normalizePhone(phoneNumber).length >= 11;
     }
-  } else if (phoneNumber.length < 11) {
-    detectionMissed = false;
+  }
+
+  // Independent of auto-detect: cleans up pasted numbers (spaces,
+  // +234 prefix, missing leading 0) into the plain local format, so
+  // the strict validation below and the final submission both see a
+  // consistent value.
+  $: {
+    const cleaned = normalizePhone(phoneNumber);
+    if (cleaned !== phoneNumber && /^0\d{10}$/.test(cleaned)) {
+      phoneNumber = cleaned;
+    }
   }
 
   function pickNetworkManually(code: Network) {
@@ -64,11 +75,12 @@
     step = 'confirm';
   }
 
-  function confirmPurchase() {
+  async function confirmPurchase() {
     error = '';
     submitting = true;
-    setTimeout(() => {
-      const result = purchaseService({
+    // timeout removed — now truly async
+    (async () => {
+      const result = await purchaseService({
         type: 'airtime',
         amount: chargedAmount,
         description: `${network} airtime · ${phoneNumber}`,
@@ -88,7 +100,7 @@
         showToast(`${formatNaira(chargedAmount)} airtime sent to ${phoneNumber}`);
         step = 'success';
       }
-    }, 700);
+    })();
   }
 
   function resetForm() {
@@ -97,6 +109,10 @@
     completedTx = null;
     step = 'form';
   }
+  $: serviceToggle = $serviceToggles.find(s => s.key === 'airtime');
+  $: serviceEnabled = serviceToggle?.isEnabled ?? true;
+  $: serviceReason = serviceToggle?.disabledReason ?? '';
+
 </script>
 
 <svelte:head><title>Buy airtime — Stefanx</title></svelte:head>
@@ -105,6 +121,10 @@
   <PageHeader title="Buy airtime" />
 {/if}
 
+
+{#if !serviceEnabled}
+  <ServiceUnavailable label="Airtime" reason={serviceReason} />
+{:else}
 {#if step === 'form'}
   <div class="px-4 py-5">
     <div class="mb-3">
@@ -248,4 +268,5 @@
     onRetry={confirmPurchase}
     retrying={submitting}
   />
+{/if}
 {/if}

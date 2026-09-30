@@ -1,13 +1,11 @@
 <script lang="ts">
+  import { serviceToggles } from '$lib/stores/serviceStatus';
+  import ServiceUnavailable from '$lib/components/ServiceUnavailable.svelte';
   import { goto } from '$app/navigation';
   import { NETWORKS, type Network } from '$lib/data/catalog';
-  import {
-    requestAirtimeToCash,
-    beneficiaries,
-    isBeneficiarySaved,
-    AIRTIME_TO_CASH_RATE
-  } from '$lib/stores/db';
-  import { detectNetwork } from '$lib/network';
+    import { purchaseService, walletBalance, currentProfile, beneficiaries, isBeneficiarySaved } from '$lib/stores/db';
+  const AIRTIME_TO_CASH_RATE = 0.85;
+  import { detectNetwork, normalizePhone } from '$lib/network';
   import { showToast } from '$lib/stores/toast';
   import { formatNaira } from '$lib/format';
   import PageHeader from '$lib/components/PageHeader.svelte';
@@ -31,16 +29,21 @@
   $: payout = amount ? Math.round(amount * AIRTIME_TO_CASH_RATE) : 0;
   $: phoneBeneficiaries = $beneficiaries.filter((b) => b.kind === 'phone');
 
-  $: if (autoDetect && phoneNumber.length === 11) {
+  $: if (autoDetect) {
     const detected = detectNetwork(phoneNumber);
     if (detected) {
       network = detected;
       detectionMissed = false;
     } else {
-      detectionMissed = true;
+      detectionMissed = normalizePhone(phoneNumber).length >= 11;
     }
-  } else if (phoneNumber.length < 11) {
-    detectionMissed = false;
+  }
+
+  $: {
+    const cleaned = normalizePhone(phoneNumber);
+    if (cleaned !== phoneNumber && /^0\d{10}$/.test(cleaned)) {
+      phoneNumber = cleaned;
+    }
   }
 
   function pickNetworkManually(code: Network) {
@@ -64,28 +67,37 @@
     step = 'confirm';
   }
 
-  function confirmRequest() {
+  async function confirmRequest() {
     error = '';
     submitting = true;
-    setTimeout(() => {
-      const result = requestAirtimeToCash({ network: network!, amount: amount!, phoneNumber });
-      submitting = false;
-
-      if (!result.ok) {
-        error = result.error;
-        step = 'form';
-        return;
-      }
-      completedTx = result.transaction;
-      showToast('Request submitted — awaiting confirmation');
-      step = 'success';
-    }, 500);
+    const result = await purchaseService({
+      type: 'airtime_to_cash',
+      amount: payout,
+      description: `Airtime to cash — ₦${amount} → ₦${payout} · ${phoneNumber}`,
+      meta: { network: network ?? '', phoneNumber }
+    });
+    submitting = false;
+    if (!result.ok) { error = result.error; step = 'form'; return; }
+    completedTx = result.transaction;
+    showToast('Request submitted — awaiting confirmation');
+    step = 'success';
   }
+  $: serviceToggle = $serviceToggles.find(s => s.key === 'airtime_to_cash');
+  $: serviceEnabled = serviceToggle?.isEnabled ?? true;
+  $: serviceReason = serviceToggle?.disabledReason ?? '';
+
 </script>
 
 <svelte:head><title>Airtime to cash — Stefanx</title></svelte:head>
 
-<PageHeader title="Airtime to cash" />
+{#if step !== 'success'}
+  <PageHeader title="Airtime to cash" />
+{/if}
+
+
+{#if !serviceEnabled}
+  <ServiceUnavailable label="Airtime to cash" reason={serviceReason} />
+{:else}
 
 {#if step === 'form'}
   <div class="px-4 py-5">
@@ -216,4 +228,5 @@
       Back to dashboard
     </button>
   </div>
+{/if}
 {/if}

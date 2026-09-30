@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { serviceToggles } from '$lib/stores/serviceStatus';
+  import ServiceUnavailable from '$lib/components/ServiceUnavailable.svelte';
   import { goto } from '$app/navigation';
   import { NETWORKS, type Network } from '$lib/data/catalog';
   import { purchaseService, walletBalance, currentProfile } from '$lib/stores/db';
@@ -36,11 +38,12 @@
     step = 'confirm';
   }
 
-  function confirmPurchase() {
+  async function confirmPurchase() {
     error = '';
     submitting = true;
-    setTimeout(() => {
-      const result = purchaseService({
+    // timeout removed — now truly async
+    (async () => {
+      const result = await purchaseService({
         type: 'recharge_card_printing',
         amount: chargedTotal,
         description: `${quantity} × ${network} ${formatNaira(denomination!)} recharge cards`,
@@ -61,7 +64,7 @@
         showToast(`${quantity} ${network} cards printed`);
         step = 'success';
       }
-    }, 700);
+    })();
   }
 
   function handlePrint() {
@@ -78,14 +81,22 @@
     a.click();
     URL.revokeObjectURL(url);
   }
+  $: serviceToggle = $serviceToggles.find(s => s.key === 'recharge_cards');
+  $: serviceEnabled = serviceToggle?.isEnabled ?? true;
+  $: serviceReason = serviceToggle?.disabledReason ?? '';
+
 </script>
 
 <svelte:head><title>Recharge card printing — Stefanx</title></svelte:head>
 
-{#if step === 'form' || step === 'confirm'}
+{#if step !== 'success' && step !== 'failed'}
   <PageHeader title="Recharge card printing" />
 {/if}
 
+
+{#if !serviceEnabled}
+  <ServiceUnavailable label="Recharge card printing" reason={serviceReason} />
+{:else}
 {#if step === 'form'}
   <div class="px-4 py-5">
     <div class="mb-5 rounded-xl bg-fanu-50 px-4 py-3 text-xs text-fanu-800">
@@ -242,4 +253,5 @@
     onRetry={confirmPurchase}
     retrying={submitting}
   />
+{/if}
 {/if}

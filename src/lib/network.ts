@@ -23,7 +23,24 @@ const PREFIX_MAP: Record<string, Network> = {
   '0909': '9MOBILE'
 };
 
+/**
+ * Cleans up the real-world variations a phone number shows up in —
+ * spaces/dashes from how it's displayed, +234/234 international
+ * prefixes, or a missing leading 0 — down to the plain 11-digit local
+ * format ("0803...") the prefix table is keyed on. Without this, a
+ * pasted number (which almost always carries spaces or +234) would
+ * simply never match, silently.
+ */
+export function normalizePhone(raw: string): string {
+  let digits = raw.replace(/[^\d+]/g, '');
+  if (digits.startsWith('+234')) digits = '0' + digits.slice(4);
+  else if (digits.startsWith('234') && digits.length === 13) digits = '0' + digits.slice(3);
+  else if (digits.length === 10 && !digits.startsWith('0')) digits = '0' + digits;
+  return digits;
+}
+
 export function detectNetwork(phoneNumber: string): Network | null {
-  if (!/^0\d{10}$/.test(phoneNumber)) return null;
-  return PREFIX_MAP[phoneNumber.slice(0, 4)] ?? null;
+  const normalized = normalizePhone(phoneNumber);
+  if (!/^0\d{10}$/.test(normalized)) return null;
+  return PREFIX_MAP[normalized.slice(0, 4)] ?? null;
 }

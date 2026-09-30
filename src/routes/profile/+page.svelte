@@ -1,23 +1,27 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
-  import { currentProfile, walletBalance, logout, beneficiaries, removeBeneficiary, switchPackage } from '$lib/stores/db';
-  import { formatNaira } from '$lib/format';
+  import { currentProfile, walletBalance, logout, beneficiaries, removeBeneficiary, transactions } from '$lib/stores/db';
+  import { formatNaira, formatDate } from '$lib/format';
   import { packageLabel } from '$lib/pricing';
   import PageHeader from '$lib/components/PageHeader.svelte';
+  import TransactionRow from '$lib/components/TransactionRow.svelte';
+  import TransactionDetailModal from '$lib/components/TransactionDetailModal.svelte';
 
-  function handleLogout() {
-    logout();
-    goto('/login');
-  }
+  import type { Transaction } from '$lib/types';
+  let selectedTx: Transaction | null = null;
 
+  function handleLogout() { logout(); goto('/login'); }
   const kindLabels = { phone: 'Phone', meter: 'Meter', smartcard: 'Smartcard' };
+
+  $: recentTxs = $transactions.slice(0, 10);
 </script>
 
-<svelte:head><title>Profile — Stefanx</title></svelte:head>
+<svelte:head><title>Profile — Stefanx Data Services</title></svelte:head>
 
 <PageHeader title="Profile" showBack={false} />
 
 <div class="px-4 py-5">
+  <!-- User info card -->
   {#if $currentProfile}
     <div class="mb-5 flex items-center gap-3 rounded-2xl bg-white p-4 shadow-sm">
       <div class="flex h-12 w-12 items-center justify-center rounded-full bg-fanu-100 font-display text-lg font-semibold text-fanu-700">
@@ -36,46 +40,35 @@
       </div>
       <div class="flex items-center justify-between py-3">
         <span class="text-sm text-ink/60">Wallet balance</span>
-        <span class="font-mono text-sm font-medium tabular-nums text-ink">{formatNaira($walletBalance)}</span>
+        <span class="font-mono text-sm font-semibold tabular-nums text-ink">{formatNaira($walletBalance)}</span>
+      </div>
+      <div class="flex items-center justify-between py-3">
+        <span class="text-sm text-ink/60">Account type</span>
+        <span class="rounded-full bg-fanu-50 px-2.5 py-0.5 text-xs font-semibold text-fanu-700">{packageLabel($currentProfile.package)}</span>
       </div>
       <div class="flex items-center justify-between py-3">
         <span class="text-sm text-ink/60">Signed in with</span>
         <span class="text-sm font-medium capitalize text-ink">{$currentProfile.authProvider}</span>
       </div>
     </div>
+  {/if}
 
-    <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-ink/45">Account type</p>
-    <div class="mb-5 rounded-2xl bg-white p-4 shadow-sm">
-      <div class="grid grid-cols-2 gap-2">
-        <button
-          type="button"
-          on:click={() => switchPackage('smart_user')}
-          class="rounded-xl border py-3 text-left transition"
-          class:border-fanu-500={$currentProfile.package === 'smart_user'}
-          class:bg-fanu-50={$currentProfile.package === 'smart_user'}
-          class:border-fanu-100={$currentProfile.package !== 'smart_user'}
-        >
-          <p class="px-3 text-sm font-semibold text-ink">Smart User</p>
-          <p class="px-3 text-[11px] text-ink/45">Standard retail pricing</p>
-        </button>
-        <button
-          type="button"
-          on:click={() => switchPackage('reseller')}
-          class="rounded-xl border py-3 text-left transition"
-          class:border-fanu-500={$currentProfile.package === 'reseller'}
-          class:bg-fanu-50={$currentProfile.package === 'reseller'}
-          class:border-fanu-100={$currentProfile.package !== 'reseller'}
-        >
-          <p class="px-3 text-sm font-semibold text-ink">Reseller</p>
-          <p class="px-3 text-[11px] text-ink/45">Wholesale pricing on data & cable</p>
-        </button>
+  <!-- Transactions -->
+  {#if recentTxs.length > 0}
+    <div class="mb-5">
+      <div class="mb-2 flex items-center justify-between">
+        <p class="text-xs font-semibold uppercase tracking-wide text-ink/45">Recent transactions</p>
+        <a href="/transaction-history" class="text-xs font-medium text-fanu-700 hover:underline">See all</a>
       </div>
-      <p class="mt-3 text-[11px] text-ink/40">
-        Currently on <span class="font-medium text-ink/60">{packageLabel($currentProfile.package)}</span> pricing.
-      </p>
+      <div class="overflow-hidden rounded-2xl bg-white shadow-sm">
+        {#each recentTxs as tx (tx.id)}
+          <TransactionRow {tx} on:view={(e) => (selectedTx = e.detail)} />
+        {/each}
+      </div>
     </div>
   {/if}
 
+  <!-- Beneficiaries -->
   {#if $beneficiaries.length > 0}
     <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-ink/45">Beneficiaries</p>
     <div class="mb-5 divide-y divide-fanu-50 rounded-2xl bg-white px-4 shadow-sm">
@@ -85,27 +78,22 @@
             <p class="text-sm font-medium text-ink">{b.name}</p>
             <p class="text-[11px] text-ink/45">{kindLabels[b.kind]} · {b.value}{b.extra ? ` · ${b.extra}` : ''}</p>
           </div>
-          <button
-            type="button"
-            on:click={() => removeBeneficiary(b.id)}
-            class="text-xs font-medium text-red-500 hover:underline"
-          >
-            Remove
-          </button>
+          <button type="button" on:click={() => removeBeneficiary(b.id)} class="text-xs font-medium text-red-500 hover:underline">Remove</button>
         </div>
       {/each}
     </div>
   {/if}
 
-  <button
-    type="button"
-    on:click={handleLogout}
-    class="w-full rounded-xl border border-red-200 py-3 text-sm font-semibold text-red-600 transition hover:bg-red-50"
-  >
+  {#if $currentProfile?.role === 'admin'}
+    <a href="/admin" class="mb-3 flex w-full items-center justify-center gap-2 rounded-xl bg-ink py-3 text-sm font-semibold text-white">
+      Admin dashboard
+    </a>
+  {/if}
+
+  <button type="button" on:click={handleLogout}
+    class="w-full rounded-xl border border-red-200 py-3 text-sm font-semibold text-red-600 transition hover:bg-red-50">
     Sign out
   </button>
-
-  <p class="mt-6 text-center text-[11px] text-ink/40">
-    Demo mode — running on mock data. Connect Supabase to go live.
-  </p>
 </div>
+
+<TransactionDetailModal tx={selectedTx} onClose={() => (selectedTx = null)} />
