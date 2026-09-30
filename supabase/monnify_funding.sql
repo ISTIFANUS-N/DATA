@@ -9,6 +9,8 @@ create table if not exists public.reserved_accounts (
   bvn_verified   boolean not null default false,
   created_at     timestamptz not null default now()
 );
+alter table public.reserved_accounts add column if not exists account_reference text;
+alter table public.reserved_accounts add column if not exists contract_code text;
 alter table public.reserved_accounts add column if not exists bank_code text;
 alter table public.reserved_accounts add column if not exists bvn_verified boolean not null default false;
 

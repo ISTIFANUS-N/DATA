@@ -1,5 +1,6 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
+import { PUBLIC_MONNIFY_CONTRACT_CODE } from '$env/static/public';
 import { adminClient, createReservedAccount } from '$lib/server/monnify';
 
 export const POST: RequestHandler = async ({ request, locals }) => {
@@ -33,6 +34,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
     const row = {
       user_id: user.id,
+      account_reference: user.id, // the reference we registered with Monnify
+      contract_code: PUBLIC_MONNIFY_CONTRACT_CODE,
       account_number: acc.accountNumber,
       account_name: acc.accountName,
       bank_name: acc.bankName,
