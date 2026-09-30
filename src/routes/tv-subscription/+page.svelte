@@ -1,6 +1,9 @@
 <script lang="ts">
+  import { serviceToggles } from '$lib/stores/serviceStatus';
+  import ServiceUnavailable from '$lib/components/ServiceUnavailable.svelte';
   import { goto } from '$app/navigation';
-  import { CABLE_PLANS, type CablePlan } from '$lib/data/catalog';
+  import { type CablePlan } from '$lib/data/catalog';
+  import { cablePlans } from '$lib/stores/catalog';
   import { purchaseService, walletBalance, beneficiaries, isBeneficiarySaved, currentProfile } from '$lib/stores/db';
   import { mockValidateAccount, type ValidationResult } from '$lib/validation';
   import { applyPackagePricing, packageLabel } from '$lib/pricing';
@@ -31,7 +34,7 @@
   let submitting = false;
   let completedTx: Transaction | null = null;
 
-  $: plansForProvider = CABLE_PLANS.filter((p) => p.provider === provider);
+  $: plansForProvider = $cablePlans.filter((p) => p.provider === provider && p.isActive);
   $: smartcardBeneficiaries = $beneficiaries.filter((b) => b.kind === 'smartcard');
   $: pkg = $currentProfile?.package ?? 'smart_user';
   $: chargedPrice = selectedPlan ? applyPackagePricing(selectedPlan.price, 'cable', pkg) : 0;
@@ -50,7 +53,8 @@
     const token = ++validationToken;
     validationState = 'validating';
 
-    setTimeout(async () => {
+    // timeout removed — now truly async
+    (async () => {
       const result: ValidationResult = await mockValidateAccount(value, 8);
       if (token !== validationToken) return;
       if (result.valid) {
@@ -60,7 +64,7 @@
         validationState = 'invalid';
         validationError = result.error ?? '';
       }
-    }, 450);
+    })();
   }
 
   function pickBeneficiary(b: Beneficiary) {
@@ -78,13 +82,14 @@
     step = 'confirm';
   }
 
-  function confirmPurchase() {
+  async function confirmPurchase() {
     error = '';
     submitting = true;
     const plan = confirmedPlan ?? selectedPlan!;
     confirmedPlan = plan;
-    setTimeout(() => {
-      const result = purchaseService({
+    // timeout removed — now truly async
+    (async () => {
+      const result = await purchaseService({
         type: 'cable',
         amount: applyPackagePricing(plan.price, 'cable', pkg),
         description: `${plan.packageName} · ${smartcardNumber}`,
@@ -104,7 +109,7 @@
         showToast(`${plan.packageName} renewed for ${smartcardNumber}`);
         step = 'success';
       }
-    }, 700);
+    })();
   }
 
   function resetForm() {
@@ -115,6 +120,10 @@
     completedTx = null;
     step = 'form';
   }
+  $: serviceToggle = $serviceToggles.find(s => s.key === 'cable');
+  $: serviceEnabled = serviceToggle?.isEnabled ?? true;
+  $: serviceReason = serviceToggle?.disabledReason ?? '';
+
 </script>
 
 <svelte:head><title>Cable TV subscription — Stefanx</title></svelte:head>
@@ -123,6 +132,10 @@
   <PageHeader title="Cable TV" />
 {/if}
 
+
+{#if !serviceEnabled}
+  <ServiceUnavailable label="Cable TV" reason={serviceReason} />
+{:else}
 {#if step === 'form'}
   <div class="px-4 py-5">
     <p class="mb-2 text-xs font-medium text-ink/60">Provider</p>
@@ -247,4 +260,5 @@
     onRetry={confirmPurchase}
     retrying={submitting}
   />
+{/if}
 {/if}

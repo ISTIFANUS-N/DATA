@@ -1,16 +1,26 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
-  import { updatePhone } from '$lib/stores/db';
+  import { supabase } from '$lib/supabase';
+  import { currentProfile } from '$lib/stores/db';
 
   let phone = '';
   let error = '';
+  let loading = false;
 
-  function handleSubmit() {
-    const result = updatePhone(phone);
-    if (!result.ok) {
-      error = result.error;
-      return;
-    }
+  async function handleSubmit() {
+    error = ''; loading = true;
+    if (!/^0\d{10}$/.test(phone)) { error = 'Enter a valid 11-digit Nigerian phone number.'; loading = false; return; }
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { error = 'Not signed in.'; loading = false; return; }
+
+    const { error: dbError } = await supabase
+      .from('profiles')
+      .update({ phone })
+      .eq('id', user.id);
+
+    loading = false;
+    if (dbError) { error = dbError.message; return; }
     goto('/dashboard');
   }
 </script>
@@ -27,25 +37,16 @@
     <form on:submit|preventDefault={handleSubmit} class="flex flex-col gap-3">
       <label class="flex flex-col gap-1.5">
         <span class="text-xs font-medium text-ink/60">Phone number</span>
-        <input
-          type="tel"
-          bind:value={phone}
-          required
-          placeholder="08012345678"
-          pattern="0\d{10}"
-          class="rounded-xl border border-fanu-100 px-3.5 py-3 text-sm focus:border-fanu-500"
-        />
+        <input type="tel" bind:value={phone} required placeholder="08012345678"
+          maxlength="11"
+          class="rounded-xl border border-fanu-100 px-3.5 py-3 text-sm focus:border-fanu-500 focus:outline-none" />
       </label>
 
-      {#if error}
-        <p class="text-sm text-red-600">{error}</p>
-      {/if}
+      {#if error}<p class="text-sm text-red-600">{error}</p>{/if}
 
-      <button
-        type="submit"
-        class="mt-1 rounded-xl bg-spark-500 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-spark-600"
-      >
-        Continue
+      <button type="submit" disabled={loading}
+        class="mt-1 rounded-xl bg-spark-500 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-spark-600 disabled:opacity-60">
+        {loading ? 'Saving…' : 'Continue'}
       </button>
     </form>
   </div>

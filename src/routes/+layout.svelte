@@ -3,22 +3,19 @@
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { browser } from '$app/environment';
-  import { isLoggedIn, currentProfile, ensureGuestSession } from '$lib/stores/db';
+  import { isLoggedIn, currentProfile } from '$lib/stores/db';
   import BottomNav from '$lib/components/BottomNav.svelte';
   import SideNav from '$lib/components/SideNav.svelte';
   import ToastHost from '$lib/components/ToastHost.svelte';
+  import MobileServiceDrawer from '$lib/components/MobileServiceDrawer.svelte';
 
-  // TEMPORARY: set to false to skip the login requirement entirely so
-  // the frontend can be browsed/demoed freely — anyone landing on the
-  // app is auto-signed into a shared local "Guest" account instead of
-  // being sent to /login. Flip this back to true once real accounts
-  // (Supabase Auth) are wired in and sign-in should be enforced again.
-  const AUTH_REQUIRED = false;
+  let drawerOpen = false;
 
   const publicPaths = ['/login', '/register'];
 
   $: path = $page.url.pathname;
   $: isPublicPath = publicPaths.includes(path);
+  $: isAdminPath = path.startsWith('/admin');
   $: needsPhone = $isLoggedIn && $currentProfile !== null && !$currentProfile.phone;
 
   // Re-evaluates whenever path, login state, or profile changes.
@@ -26,19 +23,13 @@
   // localStorage (which the stores above read from) doesn't exist on
   // the server anyway, so there's nothing correct to redirect on there.
   $: if (browser) {
-    if (!AUTH_REQUIRED) {
-      if (!$isLoggedIn) {
-        ensureGuestSession();
-      } else if (path === '/') {
-        goto('/dashboard', { replaceState: true });
-      }
-    } else if (path === '/') {
+    if (path === '/') {
       goto($isLoggedIn ? '/dashboard' : '/login', { replaceState: true });
     } else if (!$isLoggedIn && !isPublicPath) {
       goto('/login', { replaceState: true });
     } else if ($isLoggedIn && isPublicPath) {
       goto('/dashboard', { replaceState: true });
-    } else if ($isLoggedIn && needsPhone && path !== '/complete-profile') {
+    } else if ($isLoggedIn && needsPhone && !isAdminPath && path !== '/complete-profile') {
       goto('/complete-profile', { replaceState: true });
     }
   }
@@ -46,7 +37,7 @@
 
 <ToastHost />
 
-{#if isPublicPath || path === '/' || path === '/complete-profile'}
+{#if isPublicPath || path === '/' || path === '/complete-profile' || isAdminPath}
   <slot />
 {:else}
   <div class="min-h-screen bg-paper md:flex">
@@ -57,5 +48,18 @@
       </div>
     </div>
   </div>
+  <!-- Mobile floating grid button — shows service drawer -->
+  <button
+    type="button"
+    on:click={() => (drawerOpen = true)}
+    class="fixed bottom-20 right-4 z-30 flex h-11 w-11 items-center justify-center rounded-full bg-fanu-600 shadow-lg text-white md:hidden"
+    aria-label="All services"
+  >
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+      <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+    </svg>
+  </button>
+  <MobileServiceDrawer bind:open={drawerOpen} />
   <BottomNav />
 {/if}

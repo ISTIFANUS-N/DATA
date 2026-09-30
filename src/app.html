@@ -12,10 +12,11 @@
       href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap"
       rel="stylesheet"
     />
-    <title>Stefanx — Airtime, Data & Bills</title>
+    <title>Stefanx Data Services — Airtime, Data, Bills & More</title>
     %sveltekit.head%
   </head>
   <body data-sveltekit-preload-data="hover" class="bg-paper text-ink font-body">
     <div style="display: contents">%sveltekit.body%</div>
-  </body>
+    <!-- Monnify payment SDK — required for wallet funding -->
+    <script src="https://sdk.monnify.com/plugin/monnify.js"></script>
 </html>

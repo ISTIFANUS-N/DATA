@@ -1,5 +1,6 @@
 <script lang="ts">
   import { page } from '$app/stores';
+  import { currentProfile } from '$lib/stores/db';
 
   const navLinks = [
     { href: '/dashboard', label: 'Dashboard', icon: 'home' },
@@ -13,7 +14,9 @@
     { href: '/tv-subscription', label: 'Cable TV' },
     { href: '/electricity-bill', label: 'Electricity' },
     { href: '/airtime-to-cash', label: 'Airtime to cash' },
-    { href: '/recharge-card-printing', label: 'Recharge card printing' }
+    { href: '/recharge-card-printing', label: 'Recharge card printing' },
+    { href: '/bulk-sms', label: 'Bulk SMS' },
+    { href: '/result-checker', label: 'Result checker' }
   ];
 
   $: isActive = (href: string) => $page.url.pathname === href;
@@ -63,4 +66,14 @@
       </a>
     {/each}
   </nav>
+
+  {#if $currentProfile?.role === 'admin'}
+    <a
+      href="/admin"
+      class="mt-8 flex items-center gap-2 rounded-xl bg-ink/5 px-3 py-2.5 text-sm font-semibold text-ink transition hover:bg-ink/10"
+    >
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2 3 6v6c0 5 4 8.5 9 10 5-1.5 9-5 9-10V6l-9-4Z" /></svg>
+      Admin dashboard
+    </a>
+  {/if}
 </aside>

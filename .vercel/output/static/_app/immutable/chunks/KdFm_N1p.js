@@ -1,1 +1,0 @@
-function r(t){return new Intl.NumberFormat("en-NG",{style:"currency",currency:"NGN",minimumFractionDigits:2}).format(t)}function n(t){return new Intl.DateTimeFormat("en-NG",{day:"numeric",month:"short",hour:"numeric",minute:"2-digit"}).format(new Date(t))}export{n as a,r as f};

@@ -1,6 +1,10 @@
 <script lang="ts">
   import { transactions } from '$lib/stores/db';
   import TransactionRow from '$lib/components/TransactionRow.svelte';
+  import TransactionDetailModal from '$lib/components/TransactionDetailModal.svelte';
+
+  import type { Transaction } from '$lib/types';
+  let selectedTx: Transaction | null = null;
   import PageHeader from '$lib/components/PageHeader.svelte';
   import type { TransactionType } from '$lib/types';
 
@@ -12,7 +16,9 @@
     { value: 'electricity', label: 'Electricity' },
     { value: 'cable', label: 'Cable' },
     { value: 'airtime_to_cash', label: 'Airtime to cash' },
-    { value: 'recharge_card_printing', label: 'Recharge cards' }
+    { value: 'recharge_card_printing', label: 'Recharge cards' },
+    { value: 'bulk_sms', label: 'Bulk SMS' },
+    { value: 'result_checker', label: 'Result checker' }
   ];
 
   let activeFilter: TransactionType | 'all' = 'all';
@@ -51,8 +57,10 @@
       </div>
     {:else}
       {#each filtered as tx (tx.id)}
-        <TransactionRow {tx} />
+        <TransactionRow {tx} on:view={(e) => (selectedTx = e.detail)} />
       {/each}
     {/if}
   </div>
 </div>
+
+<TransactionDetailModal tx={selectedTx} onClose={() => (selectedTx = null)} />
