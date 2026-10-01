@@ -84,7 +84,7 @@
         type: 'airtime',
         amount: chargedAmount,
         description: `${network} airtime · ${phoneNumber}`,
-        meta: { network: network!, phoneNumber }
+        meta: { network: network!, phoneNumber, faceAmount: String(amount) }
       });
       submitting = false;
 

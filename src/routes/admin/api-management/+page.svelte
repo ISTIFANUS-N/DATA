@@ -11,14 +11,11 @@
 
   let showAdd = false;
   let editingId: string | null = null;
-  let showKeys: Record<string, boolean> = {};
 
   const emptyForm = () => ({
     service: 'data' as ApiServiceType,
     name: '',
     baseUrl: '',
-    apiKey: '',
-    secretKey: '',
     isActive: false,
     environment: 'sandbox' as 'live' | 'sandbox',
     notes: ''
@@ -27,8 +24,7 @@
 
   function startAdd() { form = emptyForm(); editingId = null; showAdd = true; }
   function startEdit(p: ApiProvider) {
-    form = { service: p.service, name: p.name, baseUrl: p.baseUrl, apiKey: p.apiKey,
-      secretKey: p.secretKey, isActive: p.isActive, environment: p.environment, notes: p.notes };
+    form = { service: p.service, name: p.name, baseUrl: p.baseUrl, isActive: p.isActive, environment: p.environment, notes: p.notes };
     editingId = p.id; showAdd = false;
   }
   function cancel() { showAdd = false; editingId = null; }
@@ -58,11 +54,6 @@
     showToast('Active provider updated');
   }
 
-  function mask(key: string) {
-    if (!key) return '—';
-    return key.slice(0, 4) + '••••••••' + key.slice(-4);
-  }
-
   $: grouped = API_SERVICES.map(svc => ({
     service: svc,
     label: SERVICE_LABELS[svc],
@@ -76,8 +67,8 @@
   <div>
     <h1 class="font-display text-xl font-bold text-ink">API management</h1>
     <p class="text-sm text-ink/55">
-      {#if isSuperAdmin}Configure VTU provider API keys and endpoints for each service.
-      {:else}View-only — super admin access required to edit API credentials.{/if}
+      {#if isSuperAdmin}Providers you track for each service.
+      {:else}View-only — super admin access required to edit.{/if}
     </p>
   </div>
   {#if isSuperAdmin}
@@ -86,6 +77,16 @@
       + Add provider
     </button>
   {/if}
+</div>
+
+<div class="mb-6 rounded-2xl border border-fanu-100 bg-fanu-50 px-4 py-3 text-xs leading-relaxed text-ink/70">
+  <p class="font-semibold text-ink">API keys are not stored here</p>
+  <p class="mt-0.5">
+    Credentials and which provider serves each service are set as server environment variables
+    (<span class="font-mono">PROVIDER_AIRTIME</span>, <span class="font-mono">PROVIDER_DATA</span>,
+    <span class="font-mono">VTPASS_API_KEY</span>, …) in Vercel, so they never reach the browser.
+    This page is a reference list only; "Set active" does not change live routing.
+  </p>
 </div>
 
 {#if (showAdd || editingId) && isSuperAdmin}
@@ -109,16 +110,6 @@
           class="rounded-lg border border-fanu-100 px-2.5 py-2 text-sm font-mono" />
       </label>
       <label class="flex flex-col gap-1 text-xs">
-        <span class="font-medium text-ink/60">API key</span>
-        <input type="password" bind:value={form.apiKey} placeholder="sk_live_..."
-          class="rounded-lg border border-fanu-100 px-2.5 py-2 text-sm font-mono" />
-      </label>
-      <label class="flex flex-col gap-1 text-xs">
-        <span class="font-medium text-ink/60">Secret key</span>
-        <input type="password" bind:value={form.secretKey} placeholder="sk_secret_..."
-          class="rounded-lg border border-fanu-100 px-2.5 py-2 text-sm font-mono" />
-      </label>
-      <label class="flex flex-col gap-1 text-xs">
         <span class="font-medium text-ink/60">Environment</span>
         <select bind:value={form.environment} class="rounded-lg border border-fanu-100 px-2.5 py-2 text-sm">
           <option value="sandbox">Sandbox / Test</option>
@@ -136,9 +127,6 @@
         class="rounded-lg bg-fanu-600 px-4 py-2 text-xs font-semibold text-white hover:bg-fanu-700">Save</button>
       <button type="button" on:click={cancel}
         class="rounded-lg border border-fanu-100 px-4 py-2 text-xs font-semibold text-ink/60 hover:bg-fanu-50">Cancel</button>
-      <p class="text-[11px] text-amber-700">
-        ⚠ API keys are encrypted at rest. Use Supabase Vault in production for additional security.
-      </p>
     </div>
   </div>
 {/if}
@@ -187,18 +175,6 @@
               <div class="flex items-center gap-2">
                 <span class="text-ink/45 w-16 shrink-0">Base URL</span>
                 <span class="font-mono text-ink/70 truncate">{provider.baseUrl}</span>
-              </div>
-              <div class="flex items-center gap-2">
-                <span class="text-ink/45 w-16 shrink-0">API key</span>
-                <span class="font-mono text-ink/60">
-                  {showKeys[provider.id] ? (provider.apiKey || '—') : mask(provider.apiKey)}
-                </span>
-                {#if provider.apiKey && isSuperAdmin}
-                  <button type="button" on:click={() => (showKeys[provider.id] = !showKeys[provider.id])}
-                    class="text-[10px] text-ink/35 hover:text-ink">
-                    {showKeys[provider.id] ? 'Hide' : 'Show'}
-                  </button>
-                {/if}
               </div>
               {#if provider.notes}
                 <div class="flex items-center gap-2">

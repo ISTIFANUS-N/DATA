@@ -276,9 +276,30 @@ export async function purchaseService(params: {
   const fn = fnMap[params.type];
   if (!fn) return { ok: false, error: `No handler for service type: ${params.type}` };
 
-  const { data, error } = await supabase.functions.invoke(fn, {
-    body: { amount: params.amount, description: params.description, meta: params.meta ?? {} }
-  });
+  let data: any;
+  let error: { message: string } | null = null;
+
+  if (params.type === 'data' || params.type === 'airtime') {
+    // Handled by our own server route, which talks to whichever provider is configured.
+    try {
+      const res = await fetch('/api/purchase', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: params.type, amount: params.amount,
+          description: params.description, meta: params.meta ?? {}
+        })
+      });
+      data = await res.json().catch(() => null);
+      if (!res.ok) error = { message: data?.error ?? 'Request failed' };
+    } catch {
+      error = { message: 'Failed to send' };
+    }
+  } else {
+    ({ data, error } = await supabase.functions.invoke(fn, {
+      body: { amount: params.amount, description: params.description, meta: params.meta ?? {} }
+    }));
+  }
 
   if (error || !data?.ok) {
     const msg = data?.error ?? error?.message ?? '';
