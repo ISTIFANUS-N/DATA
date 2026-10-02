@@ -2,10 +2,58 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Theme tokens (RGB triplets so Tailwind opacity modifiers like text-ink/50 keep working) ── */
+:root {
+  --c-ink: 22 33 26;
+  --c-paper: 246 245 241;
+  --c-fanu-50: 239 247 240;
+  --c-fanu-100: 215 235 218;
+  --surface: #ffffff;
+  --pattern: url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22240%22 height=%22240%22 viewBox=%220 0 240 240%22 fill=%22none%22 stroke=%22%23166029%22 stroke-opacity=%220.085%22 stroke-width=%221.5%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22%3E%3Cg transform=%22translate(18 14) rotate(-14 12 12) scale(1.25)%22%3E%3Crect x=%227%22 y=%222%22 width=%2210%22 height=%2220%22 rx=%222.5%22/%3E%3Cpath d=%22M11 18.5h2%22/%3E%3C/g%3E%3Cg transform=%22translate(112 8) rotate(8 12 12) scale(1.2)%22%3E%3Cpath d=%22M2 9a15 15 0 0 1 20 0M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0%22/%3E%3Ccircle cx=%2212%22 cy=%2219.5%22 r=%22.6%22/%3E%3C/g%3E%3Cg transform=%22translate(188 30) rotate(12 12 12) scale(1.15)%22%3E%3Ccircle cx=%2212%22 cy=%2212%22 r=%2210%22/%3E%3Cpath d=%22M8.5 7.5v9M15.5 7.5v9M8.5 7.5l7 9M7 10.5h10M7 13.5h10%22/%3E%3C/g%3E%3Cg transform=%22translate(60 74) rotate(16 12 12) scale(1.2)%22%3E%3Cpath d=%22M13 2 4 14h7l-1 8 9-12h-7z%22/%3E%3C/g%3E%3Cg transform=%22translate(150 90) rotate(-10 12 12) scale(1.25)%22%3E%3Crect x=%222%22 y=%227%22 width=%2220%22 height=%2213%22 rx=%222%22/%3E%3Cpath d=%22m17 2-5 5-5-5%22/%3E%3C/g%3E%3Cg transform=%22translate(14 128) rotate(10 12 12) scale(1.15)%22%3E%3Cpath d=%22M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z%22/%3E%3C/g%3E%3Cg transform=%22translate(96 150) rotate(-8 12 12) scale(1.2)%22%3E%3Crect x=%222%22 y=%225%22 width=%2220%22 height=%2214%22 rx=%222%22/%3E%3Cpath d=%22M2 10h20M6 15h4%22/%3E%3C/g%3E%3Cg transform=%22translate(196 150) rotate(6 12 12) scale(1.1)%22%3E%3Cpath d=%22M4 20v-3M9 20v-7M14 20v-11M19 20V4%22/%3E%3C/g%3E%3Cg transform=%22translate(50 196) rotate(-12 12 12) scale(1.15)%22%3E%3Crect x=%223%22 y=%228%22 width=%2218%22 height=%224%22 rx=%221%22/%3E%3Cpath d=%22M12 8v13M5 12v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-8M7.5 8a2.5 2.5 0 0 1 0-5C11 3 12 8 12 8s1-5 4.5-5a2.5 2.5 0 0 1 0 5%22/%3E%3C/g%3E%3Cg transform=%22translate(140 200) rotate(14 12 12) scale(1.05)%22%3E%3Ccircle cx=%2212%22 cy=%2212%22 r=%2210%22/%3E%3Cpath d=%22M8.5 7.5v9M15.5 7.5v9M8.5 7.5l7 9M7 10.5h10M7 13.5h10%22/%3E%3C/g%3E%3Cg transform=%22translate(100 60) rotate(0 12 12) scale(0.55)%22%3E%3Cpath d=%22M12 5v14M5 12h14%22/%3E%3C/g%3E%3Cg transform=%22translate(30 96) rotate(0 12 12) scale(0.5)%22%3E%3Cpath d=%22M12 5v14M5 12h14%22/%3E%3C/g%3E%3Cg transform=%22translate(176 128) rotate(0 12 12) scale(0.55)%22%3E%3Cpath d=%22M12 5v14M5 12h14%22/%3E%3C/g%3E%3Cg transform=%22translate(220 196) rotate(0 12 12) scale(0.5)%22%3E%3Cpath d=%22M12 5v14M5 12h14%22/%3E%3C/g%3E%3Cg transform=%22translate(82 120) rotate(0 12 12) scale(0.45)%22%3E%3Cpath d=%22M12 5v14M5 12h14%22/%3E%3C/g%3E%3C/svg%3E");
+  --glow: rgba(31, 122, 52, 0.10);
+  --watermark-opacity: 0.06;
+}
+
+.dark {
+  color-scheme: dark;
+  --c-ink: 228 238 231;
+  --c-paper: 11 18 14;
+  --c-fanu-50: 24 38 29;
+  --c-fanu-100: 38 56 44;
+  --surface: #16211b;
+  --pattern: url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22240%22 height=%22240%22 viewBox=%220 0 240 240%22 fill=%22none%22 stroke=%22%239be3a8%22 stroke-opacity=%220.07%22 stroke-width=%221.5%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22%3E%3Cg transform=%22translate(18 14) rotate(-14 12 12) scale(1.25)%22%3E%3Crect x=%227%22 y=%222%22 width=%2210%22 height=%2220%22 rx=%222.5%22/%3E%3Cpath d=%22M11 18.5h2%22/%3E%3C/g%3E%3Cg transform=%22translate(112 8) rotate(8 12 12) scale(1.2)%22%3E%3Cpath d=%22M2 9a15 15 0 0 1 20 0M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0%22/%3E%3Ccircle cx=%2212%22 cy=%2219.5%22 r=%22.6%22/%3E%3C/g%3E%3Cg transform=%22translate(188 30) rotate(12 12 12) scale(1.15)%22%3E%3Ccircle cx=%2212%22 cy=%2212%22 r=%2210%22/%3E%3Cpath d=%22M8.5 7.5v9M15.5 7.5v9M8.5 7.5l7 9M7 10.5h10M7 13.5h10%22/%3E%3C/g%3E%3Cg transform=%22translate(60 74) rotate(16 12 12) scale(1.2)%22%3E%3Cpath d=%22M13 2 4 14h7l-1 8 9-12h-7z%22/%3E%3C/g%3E%3Cg transform=%22translate(150 90) rotate(-10 12 12) scale(1.25)%22%3E%3Crect x=%222%22 y=%227%22 width=%2220%22 height=%2213%22 rx=%222%22/%3E%3Cpath d=%22m17 2-5 5-5-5%22/%3E%3C/g%3E%3Cg transform=%22translate(14 128) rotate(10 12 12) scale(1.15)%22%3E%3Cpath d=%22M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z%22/%3E%3C/g%3E%3Cg transform=%22translate(96 150) rotate(-8 12 12) scale(1.2)%22%3E%3Crect x=%222%22 y=%225%22 width=%2220%22 height=%2214%22 rx=%222%22/%3E%3Cpath d=%22M2 10h20M6 15h4%22/%3E%3C/g%3E%3Cg transform=%22translate(196 150) rotate(6 12 12) scale(1.1)%22%3E%3Cpath d=%22M4 20v-3M9 20v-7M14 20v-11M19 20V4%22/%3E%3C/g%3E%3Cg transform=%22translate(50 196) rotate(-12 12 12) scale(1.15)%22%3E%3Crect x=%223%22 y=%228%22 width=%2218%22 height=%224%22 rx=%221%22/%3E%3Cpath d=%22M12 8v13M5 12v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-8M7.5 8a2.5 2.5 0 0 1 0-5C11 3 12 8 12 8s1-5 4.5-5a2.5 2.5 0 0 1 0 5%22/%3E%3C/g%3E%3Cg transform=%22translate(140 200) rotate(14 12 12) scale(1.05)%22%3E%3Ccircle cx=%2212%22 cy=%2212%22 r=%2210%22/%3E%3Cpath d=%22M8.5 7.5v9M15.5 7.5v9M8.5 7.5l7 9M7 10.5h10M7 13.5h10%22/%3E%3C/g%3E%3Cg transform=%22translate(100 60) rotate(0 12 12) scale(0.55)%22%3E%3Cpath d=%22M12 5v14M5 12h14%22/%3E%3C/g%3E%3Cg transform=%22translate(30 96) rotate(0 12 12) scale(0.5)%22%3E%3Cpath d=%22M12 5v14M5 12h14%22/%3E%3C/g%3E%3Cg transform=%22translate(176 128) rotate(0 12 12) scale(0.55)%22%3E%3Cpath d=%22M12 5v14M5 12h14%22/%3E%3C/g%3E%3Cg transform=%22translate(220 196) rotate(0 12 12) scale(0.5)%22%3E%3Cpath d=%22M12 5v14M5 12h14%22/%3E%3C/g%3E%3Cg transform=%22translate(82 120) rotate(0 12 12) scale(0.45)%22%3E%3Cpath d=%22M12 5v14M5 12h14%22/%3E%3C/g%3E%3C/svg%3E");
+  --glow: rgba(63, 148, 80, 0.14);
+  --watermark-opacity: 0.035;
+}
+
 @layer base {
   :focus-visible {
     outline: 2px solid theme('colors.fanu.500');
     outline-offset: 2px;
+  }
+
+  /* Creative page background: faint service icons + a soft green glow, with a large logo watermark. */
+  body {
+    background-image: var(--pattern), radial-gradient(900px 420px at 50% -80px, var(--glow), transparent 70%);
+    background-size: 240px 240px, 100% 100%;
+    background-attachment: fixed, fixed;
+  }
+  body::after {
+    content: '';
+    position: fixed;
+    right: -70px;
+    bottom: -70px;
+    width: 320px;
+    height: 320px;
+    background: url('/stefanx-icon.png') center / contain no-repeat;
+    opacity: var(--watermark-opacity);
+    transform: rotate(-12deg);
+    pointer-events: none;
+    z-index: -1;
+  }
+  @media print {
+    body { background: #fff !important; }
+    body::after { display: none; }
   }
 }
 
@@ -13,3 +61,32 @@
 .tabular-nums {
   font-variant-numeric: tabular-nums;
 }
+
+/* ── Dark mode adjustments for classes used across the app ── */
+.dark .bg-white { background-color: var(--surface); }
+.dark .bg-ink\/30, .dark .bg-ink\/40 { background-color: rgb(0 0 0 / 0.6); }
+
+.dark input:not([type='checkbox']):not([type='radio']),
+.dark select,
+.dark textarea {
+  background-color: rgb(var(--c-paper));
+  color: rgb(var(--c-ink));
+  border-color: rgb(var(--c-fanu-100));
+}
+.dark ::placeholder { color: rgb(var(--c-ink) / 0.35); }
+
+/* Green text/links need to be lighter on dark surfaces */
+.dark .text-fanu-700, .dark .text-fanu-600, .dark .text-fanu-500 { color: #86d494; }
+
+/* Status tints: translucent backgrounds + lighter text instead of pastel blocks */
+.dark .bg-amber-50  { background-color: rgb(245 158 11 / 0.12); }
+.dark .bg-red-50    { background-color: rgb(239 68 68 / 0.12); }
+.dark .bg-red-100   { background-color: rgb(239 68 68 / 0.2); }
+.dark .bg-sky-50    { background-color: rgb(14 165 233 / 0.12); }
+.dark .bg-orange-50 { background-color: rgb(249 115 22 / 0.12); }
+.dark .border-amber-100, .dark .border-amber-200 { border-color: rgb(245 158 11 / 0.3); }
+.dark .border-red-200 { border-color: rgb(239 68 68 / 0.35); }
+.dark .border-sky-200 { border-color: rgb(14 165 233 / 0.35); }
+.dark .text-amber-600, .dark .text-amber-700, .dark .text-amber-800, .dark .text-amber-900 { color: #fcd34d; }
+.dark .text-red-500, .dark .text-red-600, .dark .text-red-700 { color: #fca5a5; }
+.dark .text-sky-900 { color: #bae6fd; }

@@ -6,6 +6,7 @@
   import { pendingCount } from '$lib/stores/approvals';
   import { disabledServicesCount } from '$lib/stores/serviceStatus';
   import ApiBalanceAlert from '$lib/components/ApiBalanceAlert.svelte';
+  import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 
   // Super admin = role admin + package reseller
   $: isSuperAdmin = $currentProfile?.role === 'admin' && $currentProfile?.package === 'reseller';
@@ -61,7 +62,7 @@
 </script>
 
 {#if isAdmin}
-  <div class="min-h-screen bg-paper md:flex">
+  <div class="min-h-screen md:flex">
     <aside class="flex w-full flex-col border-b border-fanu-100 bg-white px-5 py-4 md:h-screen md:w-64 md:shrink-0 md:border-b-0 md:border-r md:py-6 md:sticky md:top-0 md:overflow-y-auto">
 
       <div class="mb-6 flex items-center justify-between md:mb-8 md:block">
@@ -74,7 +75,10 @@
             </p>
           </div>
         </a>
-        <a href="/dashboard" class="text-xs font-medium text-ink/50 hover:text-ink md:hidden">Exit</a>
+        <div class="flex items-center gap-3 md:hidden">
+          <ThemeToggle />
+          <a href="/dashboard" class="text-xs font-medium text-ink/50 hover:text-ink">Exit</a>
+        </div>
       </div>
 
       <!-- Main nav -->
@@ -143,6 +147,7 @@
       </div>
 
       <div class="mt-auto hidden flex-col gap-2 pt-8 md:flex">
+        <ThemeToggle variant="row" />
         <a href="/dashboard" class="text-xs font-medium text-ink/50 hover:text-ink">← Back to customer app</a>
         <button type="button" on:click={handleLogout} class="text-left text-xs font-medium text-red-500 hover:underline">
           Sign out

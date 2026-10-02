@@ -7,10 +7,7 @@
   import BottomNav from '$lib/components/BottomNav.svelte';
   import SideNav from '$lib/components/SideNav.svelte';
   import ToastHost from '$lib/components/ToastHost.svelte';
-  import MobileServiceDrawer from '$lib/components/MobileServiceDrawer.svelte';
   import { loadSettings } from '$lib/stores/settings';
-
-  let drawerOpen = false;
 
   const publicPaths = ['/login', '/register'];
 
@@ -44,7 +41,7 @@
 {#if isPublicPath || path === '/' || path === '/complete-profile' || isAdminPath}
   <slot />
 {:else}
-  <div class="min-h-screen bg-paper md:flex">
+  <div class="min-h-screen md:flex">
     <SideNav />
     <div class="min-h-screen w-full pb-20 md:pb-0">
       <div class="mx-auto max-w-md md:max-w-2xl md:px-8 md:py-6 lg:max-w-3xl">
@@ -52,19 +49,5 @@
       </div>
     </div>
   </div>
-  <!-- Mobile floating "Services" button — opens the service drawer -->
-  <button
-    type="button"
-    on:click={() => (drawerOpen = true)}
-    class="fixed bottom-20 right-4 z-30 flex items-center gap-2 rounded-full bg-fanu-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg md:hidden"
-    aria-label="All services"
-  >
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-      <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
-      <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
-    </svg>
-    Services
-  </button>
-  <MobileServiceDrawer bind:open={drawerOpen} />
   <BottomNav />
 {/if}

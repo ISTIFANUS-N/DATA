@@ -78,7 +78,7 @@
 
 <svelte:head><title>Create account — Stefanx</title></svelte:head>
 
-<div class="flex min-h-screen flex-col justify-center px-6 py-10 bg-paper">
+<div class="flex min-h-screen flex-col justify-center px-6 py-10">
   <div class="mx-auto w-full max-w-sm">
 
     <!-- ── VERIFY EMAIL SCREEN ── -->
