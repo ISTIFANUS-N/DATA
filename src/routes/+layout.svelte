@@ -8,6 +8,7 @@
   import SideNav from '$lib/components/SideNav.svelte';
   import ToastHost from '$lib/components/ToastHost.svelte';
   import MobileServiceDrawer from '$lib/components/MobileServiceDrawer.svelte';
+  import { loadSettings } from '$lib/stores/settings';
 
   let drawerOpen = false;
 
@@ -17,6 +18,9 @@
   $: isPublicPath = publicPaths.includes(path);
   $: isAdminPath = path.startsWith('/admin');
   $: needsPhone = $isLoggedIn && $currentProfile !== null && !$currentProfile.phone;
+
+  // Shared admin-managed settings (notification bar, airtime charges) for any signed-in user.
+  $: if (browser && $isLoggedIn) loadSettings();
 
   // Re-evaluates whenever path, login state, or profile changes.
   // Guarded to the browser: goto() throws if called during SSR, and
@@ -48,17 +52,18 @@
       </div>
     </div>
   </div>
-  <!-- Mobile floating grid button — shows service drawer -->
+  <!-- Mobile floating "Services" button — opens the service drawer -->
   <button
     type="button"
     on:click={() => (drawerOpen = true)}
-    class="fixed bottom-20 right-4 z-30 flex h-11 w-11 items-center justify-center rounded-full bg-fanu-600 shadow-lg text-white md:hidden"
+    class="fixed bottom-20 right-4 z-30 flex items-center gap-2 rounded-full bg-fanu-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg md:hidden"
     aria-label="All services"
   >
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
       <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
       <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
     </svg>
+    Services
   </button>
   <MobileServiceDrawer bind:open={drawerOpen} />
   <BottomNav />

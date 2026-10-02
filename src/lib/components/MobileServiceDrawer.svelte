@@ -1,5 +1,7 @@
 <script lang="ts">
   import { page } from '$app/stores';
+  import { goto } from '$app/navigation';
+  import { logout } from '$lib/stores/db';
 
   export let open = false;
 
@@ -15,6 +17,12 @@
   ];
 
   $: path = $page.url.pathname;
+
+  async function handleLogout() {
+    open = false;
+    await logout();
+    goto('/login');
+  }
 </script>
 
 {#if open}
@@ -60,6 +68,10 @@
         class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-ink hover:bg-fanu-50">
         👤 Profile & settings
       </a>
+      <button type="button" on:click={handleLogout}
+        class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-red-600 hover:bg-red-50">
+        🚪 Log out
+      </button>
     </div>
   </div>
 {/if}

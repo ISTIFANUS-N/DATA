@@ -1,6 +1,7 @@
 <script lang="ts">
   import { page } from '$app/stores';
-  import { currentProfile } from '$lib/stores/db';
+  import { goto } from '$app/navigation';
+  import { currentProfile, logout } from '$lib/stores/db';
 
   const navLinks = [
     { href: '/dashboard', label: 'Dashboard', icon: 'home' },
@@ -20,10 +21,15 @@
   ];
 
   $: isActive = (href: string) => $page.url.pathname === href;
+
+  async function handleLogout() {
+    await logout();
+    goto('/login');
+  }
 </script>
 
 <aside
-  class="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-fanu-100 bg-white px-5 py-6 md:flex print:hidden"
+  class="sticky top-0 hidden h-screen w-64 shrink-0 flex-col overflow-y-auto border-r border-fanu-100 bg-white px-5 py-6 md:flex print:hidden"
 >
   <a href="/dashboard" class="mb-8 flex items-center gap-2.5">
     <img src="/stefanx-icon.png" alt="" class="h-8 w-8 rounded-lg" />
@@ -76,4 +82,13 @@
       Admin dashboard
     </a>
   {/if}
+
+  <button
+    type="button"
+    on:click={handleLogout}
+    class="mt-auto flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-medium text-red-600 transition hover:bg-red-50"
+  >
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></svg>
+    Log out
+  </button>
 </aside>
