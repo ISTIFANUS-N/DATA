@@ -17,6 +17,7 @@
     { href: '/admin/transactions',label: 'Transactions',   icon: 'receipt', superAdminOnly: false },
     { href: '/admin/users',       label: 'Users',          icon: 'users',   superAdminOnly: false },
     { href: '/admin/service-status', label: 'Service status', icon: 'toggle', superAdminOnly: false },
+    { href: '/admin/notifications', label: 'Notifications', icon: 'bell',   superAdminOnly: false },
     { href: '/admin/analytics',   label: 'Analytics',      icon: 'chart',   superAdminOnly: true  },
     { href: '/admin/approvals',   label: 'Approvals',      icon: 'check',   superAdminOnly: true  },
     { href: '/admin/user-roles',  label: 'User roles',     icon: 'shield',  superAdminOnly: true  },
@@ -95,6 +96,8 @@
               <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
             {:else if link.icon === 'toggle'}
               <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="5" width="22" height="14" rx="7"/><circle cx="16" cy="12" r="4" fill="currentColor" stroke="none"/></svg>
+            {:else if link.icon === 'bell'}
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 8 3 8H3s3-1 3-8"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/></svg>
             {:else if link.icon === 'check'}
               <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>
             {:else}

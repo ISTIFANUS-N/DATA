@@ -5,7 +5,8 @@
   import { NETWORKS, type Network } from '$lib/data/catalog';
   import { purchaseService, walletBalance, beneficiaries, isBeneficiarySaved, currentProfile } from '$lib/stores/db';
   import { detectNetwork, normalizePhone } from '$lib/network';
-  import { applyPackagePricing, packageLabel } from '$lib/pricing';
+  import { airtimeCashback } from '$lib/pricing';
+  import { airtimeCashback as cashbackRates } from '$lib/stores/settings';
   import { showToast } from '$lib/stores/toast';
   import { formatNaira, formatDate } from '$lib/format';
   import PageHeader from '$lib/components/PageHeader.svelte';
@@ -31,7 +32,8 @@
 
   $: phoneBeneficiaries = $beneficiaries.filter((b) => b.kind === 'phone');
   $: pkg = $currentProfile?.package ?? 'smart_user';
-  $: chargedAmount = amount ? applyPackagePricing(amount, 'airtime', pkg) : 0;
+  // Full price is charged; cashback (if any) is paid into the wallet after delivery.
+  $: expectedCashback = amount ? airtimeCashback(amount, network, pkg, $cashbackRates) : 0;
 
   $: if (autoDetect) {
     const detected = detectNetwork(phoneNumber);
@@ -82,7 +84,7 @@
     (async () => {
       const result = await purchaseService({
         type: 'airtime',
-        amount: chargedAmount,
+        amount: amount!,
         description: `${network} airtime · ${phoneNumber}`,
         meta: { network: network!, phoneNumber, faceAmount: String(amount) }
       });
@@ -97,7 +99,9 @@
       if (result.transaction.status === 'failed') {
         step = 'failed';
       } else {
-        showToast(`${formatNaira(chargedAmount)} airtime sent to ${phoneNumber}`);
+        showToast(result.cashback
+          ? `${formatNaira(amount!)} airtime sent to ${phoneNumber} · ${formatNaira(result.cashback)} cashback added`
+          : `${formatNaira(amount!)} airtime sent to ${phoneNumber}`);
         step = 'success';
       }
     })();
@@ -194,8 +198,8 @@
       placeholder="Or enter an amount"
       class="mb-1 w-full rounded-xl border border-fanu-100 px-3.5 py-3 text-sm focus:border-fanu-500"
     />
-    {#if pkg === 'reseller' && amount}
-      <p class="mb-1 text-[11px] text-fanu-700">Reseller price: {formatNaira(chargedAmount)}</p>
+    {#if expectedCashback > 0}
+      <p class="mb-1 text-[11px] text-fanu-700">💰 You'll get {formatNaira(expectedCashback)} cashback in your wallet</p>
     {/if}
     <p class="mb-5 text-[11px] text-ink/40">Wallet balance: {formatNaira($walletBalance)}</p>
 
@@ -214,8 +218,8 @@
 {:else if step === 'confirm'}
   <PurchaseConfirm
     title="You're buying"
-    amount={chargedAmount}
-    amountLabel={pkg === 'reseller' ? `Reseller price · ${packageLabel(pkg)}` : 'Airtime amount'}
+    amount={amount ?? 0}
+    amountLabel={expectedCashback > 0 ? `Airtime amount · ${formatNaira(expectedCashback)} cashback after delivery` : 'Airtime amount'}
     rows={[
       { label: 'Network', value: network ?? '' },
       { label: 'Phone number', value: phoneNumber }

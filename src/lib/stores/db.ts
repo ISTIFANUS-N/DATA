@@ -252,7 +252,7 @@ export async function purchaseService(params: {
   amount: number;
   description: string;
   meta?: Record<string, string>;
-}): Promise<{ ok: true; transaction: Transaction } | { ok: false; error: string }> {
+}): Promise<{ ok: true; transaction: Transaction; cashback?: number } | { ok: false; error: string }> {
   const bal = get(walletBalance);
   if (bal < params.amount) {
     return { ok: false, error: `Insufficient balance. You have ${bal.toLocaleString('en-NG', { style: 'currency', currency: 'NGN' })} — need ₦${params.amount.toLocaleString()}.` };
@@ -324,7 +324,7 @@ export async function purchaseService(params: {
     meta:        params.meta
   };
 
-  return { ok: true, transaction: tx };
+  return { ok: true, transaction: tx, cashback: Number(data.cashback) || undefined };
 }
 
 // ─── Beneficiaries ────────────────────────────────────────────────────────────

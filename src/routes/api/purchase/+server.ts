@@ -3,7 +3,7 @@ import type { RequestHandler } from './$types';
 import { adminClient } from '$lib/server/supabaseAdmin';
 import { getProvider, newReference } from '$lib/server/providers';
 import { ProviderUnavailable, type Network, type ProviderResult } from '$lib/server/providers/types';
-import { applyPackagePricing } from '$lib/pricing';
+import { DEFAULT_AIRTIME_CASHBACK, airtimeCashback, type AirtimeCashback } from '$lib/pricing';
 import { normalizePhone } from '$lib/network';
 
 const NETWORKS: Network[] = ['MTN', 'GLO', 'AIRTEL', '9MOBILE'];
@@ -33,14 +33,12 @@ export const POST: RequestHandler = async ({ request, locals }) => {
   let planCode = '';
 
   if (type === 'airtime') {
-    // Charge is derived here from the face value + the user's package, never taken from the client.
+    // The face value is what's charged; it is read from meta, never from the client-supplied amount.
     faceValue = Number(meta.faceAmount);
     if (!Number.isInteger(faceValue) || faceValue < 50 || faceValue > 50_000) {
       return fail('Airtime must be between ₦50 and ₦50,000.');
     }
-    const { data: profile } = await admin
-      .from('profiles').select('package').eq('id', user.id).maybeSingle();
-    charge = applyPackagePricing(faceValue, 'airtime', profile?.package === 'reseller' ? 'reseller' : 'smart_user');
+    charge = faceValue; // customers always pay full price; any reward comes back as cashback
   } else {
     // Data plan prices are still managed client-side, so this amount can't be verified here yet.
     planCode = String(meta.apiPlanId ?? '').trim();
@@ -120,8 +118,31 @@ export const POST: RequestHandler = async ({ request, locals }) => {
   if (result.status === 'failed') await refund(result.message ?? 'provider declined');
   await admin.from('service_transactions').update({ status: result.status }).eq('id', row.id);
 
+  // Cashback for airtime, paid into the main wallet only once delivery is confirmed.
+  let cashback = 0;
+  if (type === 'airtime' && result.status === 'success') {
+    const { data: profile } = await admin
+      .from('profiles').select('package').eq('id', user.id).maybeSingle();
+    const { data: setting } = await admin
+      .from('app_settings').select('value').eq('key', 'airtime_cashback').maybeSingle();
+    const rates: AirtimeCashback = {};
+    for (const net of Object.keys(DEFAULT_AIRTIME_CASHBACK)) {
+      rates[net] = { ...DEFAULT_AIRTIME_CASHBACK[net], ...(setting?.value?.[net] ?? {}) };
+    }
+    const due = airtimeCashback(faceValue, network, profile?.package === 'reseller' ? 'reseller' : 'smart_user', rates);
+    if (due > 0) {
+      const { error: cbErr } = await admin.rpc('process_wallet_credit', {
+        p_user_id: user.id, p_amount: due, p_source: 'cashback',
+        p_ref: `CASHBACK_${reference}`, p_description: `Cashback: ${description}`.slice(0, 200)
+      });
+      if (cbErr) console.error('purchase: cashback credit failed:', cbErr.message);
+      else cashback = due;
+    }
+  }
+
   return json({
     ok: true,
-    transaction: { id: row.id, status: result.status, reference, created_at: row.created_at }
+    transaction: { id: row.id, status: result.status, reference, created_at: row.created_at },
+    cashback
   });
 };

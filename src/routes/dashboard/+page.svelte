@@ -5,10 +5,26 @@
   import WalletCard from '$lib/components/WalletCard.svelte';
   import FundWalletModal from '$lib/components/FundWalletModal.svelte';
   import TransactionRow from '$lib/components/TransactionRow.svelte';
+  import { dashboardNotice, welcomeSuggestion } from '$lib/stores/settings';
 
   let fundModalOpen = false;
   let copied = false;
-  let showAccountPrompt = false; // orange popup for users without an account
+  let showAccountPrompt = false; // friendly suggestion for users without an account
+
+  // Remember which notification the user dismissed (keyed by its save time, so a new message shows again).
+  let dismissedNotice = '';
+  try { dismissedNotice = localStorage.getItem('stx_notice_dismissed') ?? ''; } catch {}
+  function dismissNotice() {
+    dismissedNotice = $dashboardNotice.updatedAt ?? 'x';
+    try { localStorage.setItem('stx_notice_dismissed', dismissedNotice); } catch {}
+  }
+  const noticeTone = {
+    info: 'border-sky-200 bg-sky-50 text-sky-900',
+    success: 'border-fanu-100 bg-fanu-50 text-fanu-700',
+    warning: 'border-amber-200 bg-amber-50 text-amber-900'
+  } as const;
+  $: showNotice = $dashboardNotice.enabled && $dashboardNotice.message.trim() !== ''
+    && dismissedNotice !== ($dashboardNotice.updatedAt ?? 'x');
 
   type ReservedAccount = {
     account_number: string;
@@ -104,6 +120,16 @@
     </div>
   </div>
 
+  <!-- Admin notification bar -->
+  {#if showNotice}
+    <div class="mb-3 flex items-start gap-3 rounded-2xl border px-4 py-3 {noticeTone[$dashboardNotice.tone]}">
+      <span class="mt-0.5 shrink-0 text-base">📢</span>
+      <p class="min-w-0 flex-1 whitespace-pre-line text-xs leading-relaxed">{$dashboardNotice.message}</p>
+      <button type="button" on:click={dismissNotice} aria-label="Dismiss"
+        class="shrink-0 text-lg leading-none opacity-50 hover:opacity-100">✕</button>
+    </div>
+  {/if}
+
   <!-- Wallet card with inline account number -->
   <WalletCard
     balance={$walletBalance}
@@ -116,22 +142,20 @@
     {copied}
   />
 
-  <!-- Orange popup for users without an account -->
-  {#if showAccountPrompt && accountLoaded && !reservedAccount}
-    <div class="mt-3 flex items-start gap-3 rounded-2xl border border-orange-200 bg-orange-50 px-4 py-3.5">
-      <span class="mt-0.5 text-lg shrink-0">⚠️</span>
-      <div class="flex-1 min-w-0">
-        <p class="text-sm font-bold text-orange-800">You don't have a funding account yet</p>
-        <p class="text-xs text-orange-700 mt-0.5 leading-relaxed">
-          Get a dedicated Moniepoint account number to fund your wallet instantly via bank transfer.
-        </p>
+  <!-- Gentle suggestion for users without a funding account (text managed by admins) -->
+  {#if showAccountPrompt && accountLoaded && !reservedAccount && $welcomeSuggestion.enabled}
+    <div class="mt-3 flex items-start gap-3 rounded-2xl border border-fanu-100 bg-fanu-50 px-4 py-3.5">
+      <span class="mt-0.5 shrink-0 text-lg">💡</span>
+      <div class="min-w-0 flex-1">
+        <p class="text-sm font-semibold text-fanu-700">{$welcomeSuggestion.title}</p>
+        <p class="mt-0.5 text-xs leading-relaxed text-ink/60">{$welcomeSuggestion.message}</p>
         <button type="button" on:click={openFund}
-          class="mt-2.5 rounded-xl bg-orange-500 px-4 py-2 text-xs font-bold text-white transition hover:bg-orange-600">
+          class="mt-2.5 rounded-xl bg-fanu-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-fanu-700">
           Get my account number
         </button>
       </div>
-      <button type="button" on:click={() => (showAccountPrompt = false)}
-        class="shrink-0 text-orange-400 hover:text-orange-600 text-lg leading-none">✕</button>
+      <button type="button" on:click={() => (showAccountPrompt = false)} aria-label="Dismiss"
+        class="shrink-0 text-lg leading-none text-ink/30 hover:text-ink/60">✕</button>
     </div>
   {/if}
 

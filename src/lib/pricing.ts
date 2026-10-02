@@ -24,3 +24,25 @@ export function applyPackagePricing(
 export function packageLabel(pkg: Profile['package']): string {
   return pkg === 'reseller' ? 'Reseller' : 'Smart User';
 }
+
+// ── Airtime cashback: customers pay full price; the admin sets a cashback per ₦100, per network and package ──
+// e.g. 2 means ₦2 back for every ₦100 of airtime (₦20 back on ₦1,000).
+export type AirtimeCashback = Record<string, Record<Profile['package'], number>>;
+
+export const DEFAULT_AIRTIME_CASHBACK: AirtimeCashback = {
+  MTN:       { smart_user: 0, reseller: 2 },
+  GLO:       { smart_user: 0, reseller: 2 },
+  AIRTEL:    { smart_user: 0, reseller: 2 },
+  '9MOBILE': { smart_user: 0, reseller: 2 }
+};
+
+/** Cashback in Naira, rounded down to the kobo. */
+export function airtimeCashback(
+  faceValue: number,
+  network: string | null,
+  pkg: Profile['package'],
+  rates: AirtimeCashback = DEFAULT_AIRTIME_CASHBACK
+): number {
+  const per100 = rates[network ?? '']?.[pkg] ?? DEFAULT_AIRTIME_CASHBACK.MTN[pkg];
+  return Math.floor(faceValue * per100) / 100;
+}

@@ -3,6 +3,34 @@
   import { NETWORKS } from '$lib/data/catalog';
   import { showToast } from '$lib/stores/toast';
   import { formatNaira } from '$lib/format';
+  import { airtimeCashback, saveSetting } from '$lib/stores/settings';
+  import type { AirtimeCashback } from '$lib/pricing';
+
+  // Cashback per ₦100 of airtime. Local draft so typing doesn't save on every keystroke.
+  let rateDraft: AirtimeCashback | null = null;
+  let savingRates = false;
+  $: if (!rateDraft) rateDraft = JSON.parse(JSON.stringify($airtimeCashback));
+
+  function setRate(network: string, pkg: 'smart_user' | 'reseller', value: string) {
+    if (!rateDraft) return;
+    rateDraft = { ...rateDraft, [network]: { ...rateDraft[network], [pkg]: Number(value) } };
+  }
+
+  async function saveRates() {
+    if (!rateDraft) return;
+    for (const [net, r] of Object.entries(rateDraft)) {
+      for (const v of [r.smart_user, r.reseller]) {
+        if (!Number.isFinite(v) || v < 0 || v > 20) {
+          showToast(`${net}: enter cashback between ₦0 and ₦20 per ₦100`, 'error'); return;
+        }
+      }
+    }
+    savingRates = true;
+    const res = await saveSetting('airtime_cashback', rateDraft);
+    savingRates = false;
+    if (res.ok) { showToast('Airtime cashback saved'); rateDraft = null; }
+    else showToast(res.error, 'error');
+  }
 
   let drafts: Record<string, { minAmount: number; maxAmount: number }> = {};
 
@@ -25,7 +53,49 @@
 <svelte:head><title>Airtime settings — Admin</title></svelte:head>
 
 <h1 class="mb-2 font-display text-xl font-bold text-ink">Airtime settings</h1>
-<p class="mb-6 text-sm text-ink/55">Set min/max limits and enable or disable airtime per network.</p>
+<p class="mb-6 text-sm text-ink/55">Set cashback, plus min/max limits and on/off per network.</p>
+
+<div class="mb-6 rounded-2xl bg-white p-4 shadow-sm">
+  <p class="text-sm font-semibold text-ink">Cashback per ₦100 airtime</p>
+  <p class="mb-3 text-[11px] text-ink/50">
+    Customers always pay full price. Enter the cashback they get back in their wallet for every ₦100 of airtime,
+    paid once the airtime is delivered. For example 2 means ₦20 back on ₦1,000. Use 0 for no cashback.
+  </p>
+  {#if rateDraft}
+    <div class="overflow-x-auto">
+      <table class="w-full text-xs">
+        <thead>
+          <tr class="text-left text-ink/45">
+            <th class="pb-2 font-medium">Network</th>
+            <th class="pb-2 font-medium">Smart user (₦)</th>
+            <th class="pb-2 font-medium">Reseller (₦)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {#each Object.keys(rateDraft) as net}
+            <tr class="border-t border-fanu-50">
+              <td class="py-2 font-semibold text-ink">{getNetwork(net)?.label ?? net}</td>
+              <td class="py-2 pr-2">
+                <input type="number" min="0" max="20" step="0.1" value={rateDraft[net].smart_user}
+                  on:input={(e) => setRate(net, 'smart_user', e.currentTarget.value)}
+                  class="w-24 rounded-lg border border-fanu-100 px-2.5 py-1.5 text-sm" />
+              </td>
+              <td class="py-2">
+                <input type="number" min="0" max="20" step="0.1" value={rateDraft[net].reseller}
+                  on:input={(e) => setRate(net, 'reseller', e.currentTarget.value)}
+                  class="w-24 rounded-lg border border-fanu-100 px-2.5 py-1.5 text-sm" />
+              </td>
+            </tr>
+          {/each}
+        </tbody>
+      </table>
+    </div>
+    <button type="button" on:click={saveRates} disabled={savingRates}
+      class="mt-3 rounded-lg bg-fanu-600 px-4 py-2 text-xs font-semibold text-white hover:bg-fanu-700 disabled:opacity-60">
+      {savingRates ? 'Saving…' : 'Save cashback'}
+    </button>
+  {/if}
+</div>
 
 <div class="overflow-hidden rounded-2xl bg-white shadow-sm">
   {#each $airtimeSettings as setting (setting.network)}
