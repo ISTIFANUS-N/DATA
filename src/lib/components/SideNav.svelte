@@ -2,6 +2,7 @@
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { currentProfile, logout } from '$lib/stores/db';
+  import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 
   const navLinks = [
     { href: '/dashboard', label: 'Dashboard', icon: 'home' },
@@ -83,10 +84,13 @@
     </a>
   {/if}
 
+  <div class="mt-auto pt-6">
+    <ThemeToggle variant="row" />
+  </div>
   <button
     type="button"
     on:click={handleLogout}
-    class="mt-auto flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-medium text-red-600 transition hover:bg-red-50"
+    class="flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-medium text-red-600 transition hover:bg-red-50"
   >
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></svg>
     Log out

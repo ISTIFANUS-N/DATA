@@ -6,6 +6,7 @@
   import FundWalletModal from '$lib/components/FundWalletModal.svelte';
   import TransactionRow from '$lib/components/TransactionRow.svelte';
   import { dashboardNotice, welcomeSuggestion } from '$lib/stores/settings';
+  import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 
   let fundModalOpen = false;
   let copied = false;
@@ -109,6 +110,7 @@
       </div>
     </div>
     <div class="flex items-center gap-2">
+      <ThemeToggle />
       {#if $myTodayLoginCount > 1}
         <span class="rounded-full bg-fanu-50 px-2.5 py-1 text-[11px] font-medium text-fanu-700">
           {$myTodayLoginCount}× today
