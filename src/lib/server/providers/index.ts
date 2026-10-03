@@ -16,8 +16,14 @@ const REGISTRY: Record<string, () => ProviderAdapter> = {
  * is a config change + redeploy, with secrets kept server-side:
  *   PROVIDER_AIRTIME=vtpass
  *   PROVIDER_DATA=vtpass
+ *   PROVIDER_ELECTRICITY=vtpass   (meter verification)
+ *   PROVIDER_CABLE=vtpass         (smartcard verification)
  * Nothing configured means the service reports "unavailable" — never a silent mock.
  */
+const METHOD = {
+  airtime: 'airtime', data: 'data', electricity: 'verifyMeter', cable: 'verifySmartcard'
+} as const;
+
 export function getProvider(service: ProviderService): ProviderAdapter {
   const id = (env[`PROVIDER_${service.toUpperCase()}`] ?? '').trim().toLowerCase();
   if (!id) throw new ProviderUnavailable(`No provider configured for ${service}`);
@@ -29,7 +35,7 @@ export function getProvider(service: ProviderService): ProviderAdapter {
   if (!factory) throw new ProviderUnavailable(`Unknown provider "${id}"`);
 
   const adapter = factory();
-  if (!adapter[service]) throw new ProviderUnavailable(`${adapter.name} does not support ${service}`);
+  if (!adapter[METHOD[service]]) throw new ProviderUnavailable(`${adapter.name} does not support ${service}`);
   return adapter;
 }
 
