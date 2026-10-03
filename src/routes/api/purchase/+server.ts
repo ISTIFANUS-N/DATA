@@ -3,7 +3,7 @@ import type { RequestHandler } from './$types';
 import { adminClient } from '$lib/server/supabaseAdmin';
 import { getProvider, newReference } from '$lib/server/providers';
 import { ProviderUnavailable, type Network, type ProviderResult } from '$lib/server/providers/types';
-import { DEFAULT_AIRTIME_CASHBACK, airtimeCashback, type AirtimeCashback } from '$lib/pricing';
+import { payAirtimeCashback, refundWallet } from '$lib/server/settle';
 import { normalizePhone } from '$lib/network';
 
 const NETWORKS: Network[] = ['MTN', 'GLO', 'AIRTEL', '9MOBILE'];
@@ -59,6 +59,13 @@ export const POST: RequestHandler = async ({ request, locals }) => {
     throw e;
   }
 
+  if (type === 'airtime' && provider.airtimeLimits) {
+    const { min, max } = provider.airtimeLimits;
+    if (faceValue < min || faceValue > max) {
+      return fail(`Airtime must be between ₦${min.toLocaleString()} and ₦${max.toLocaleString()} for now.`);
+    }
+  }
+
   const { data: wallet } = await admin
     .from('wallets').select('balance').eq('user_id', user.id).maybeSingle();
   if (!wallet || Number(wallet.balance) < charge) {
@@ -78,10 +85,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
     return fail(/insufficient/i.test(debitErr.message) ? 'Insufficient balance.' : 'Could not process payment.', 400);
   }
 
-  const refund = (why: string) => admin.rpc('process_wallet_credit', {
-    p_user_id: user.id, p_amount: charge, p_source: 'refund',
-    p_ref: `REFUND_${reference}`, p_description: `Refund: ${why}`.slice(0, 200)
-  });
+  const refund = (why: string) => refundWallet(admin, user.id, charge, reference, why);
 
   const { data: row, error: insertErr } = await admin
     .from('service_transactions')
@@ -112,33 +116,18 @@ export const POST: RequestHandler = async ({ request, locals }) => {
       : await provider.data!({ reference, network, phone, planCode, amount: charge });
   } catch (e) {
     console.error('purchase: provider threw:', e instanceof Error ? e.message : e);
-    result = { status: 'pending', message: 'Provider error' }; // unknown outcome: don't refund blindly
+    result = e instanceof ProviderUnavailable
+      ? { status: 'failed', message: 'Provider not configured' }  // nothing was sent, so refund
+      : { status: 'pending', message: 'Provider error' };         // unknown outcome: don't refund blindly
   }
 
   if (result.status === 'failed') await refund(result.message ?? 'provider declined');
   await admin.from('service_transactions').update({ status: result.status }).eq('id', row.id);
 
   // Cashback for airtime, paid into the main wallet only once delivery is confirmed.
-  let cashback = 0;
-  if (type === 'airtime' && result.status === 'success') {
-    const { data: profile } = await admin
-      .from('profiles').select('package').eq('id', user.id).maybeSingle();
-    const { data: setting } = await admin
-      .from('app_settings').select('value').eq('key', 'airtime_cashback').maybeSingle();
-    const rates: AirtimeCashback = {};
-    for (const net of Object.keys(DEFAULT_AIRTIME_CASHBACK)) {
-      rates[net] = { ...DEFAULT_AIRTIME_CASHBACK[net], ...(setting?.value?.[net] ?? {}) };
-    }
-    const due = airtimeCashback(faceValue, network, profile?.package === 'reseller' ? 'reseller' : 'smart_user', rates);
-    if (due > 0) {
-      const { error: cbErr } = await admin.rpc('process_wallet_credit', {
-        p_user_id: user.id, p_amount: due, p_source: 'cashback',
-        p_ref: `CASHBACK_${reference}`, p_description: `Cashback: ${description}`.slice(0, 200)
-      });
-      if (cbErr) console.error('purchase: cashback credit failed:', cbErr.message);
-      else cashback = due;
-    }
-  }
+  const cashback = type === 'airtime' && result.status === 'success'
+    ? await payAirtimeCashback(admin, { userId: user.id, network, faceValue, reference, description })
+    : 0;
 
   return json({
     ok: true,

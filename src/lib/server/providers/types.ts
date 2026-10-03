@@ -29,6 +29,13 @@ export interface DataRequest {
   amount: number;
 }
 
+/** A data plan as the provider lists it. */
+export interface ProviderPlan {
+  code: string;    // send this as DataRequest.planCode
+  name: string;    // e.g. "N1,000 1.5GB - 30 days"
+  amount: number;  // provider price in Naira
+}
+
 export interface VerifyMeterRequest {
   disco: string;          // DisCo code, e.g. IKEDC
   meterNumber: string;
@@ -56,10 +63,16 @@ export interface ProviderAdapter {
   id: string;
   name: string;
   airtime?(req: AirtimeRequest): Promise<ProviderResult>;
+  /** Per-order airtime limits this provider enforces, checked before the customer is charged. */
+  airtimeLimits?: { min: number; max: number };
   data?(req: DataRequest): Promise<ProviderResult>;
   /** Look up the customer behind a meter / smartcard number. */
   verifyMeter?(req: VerifyMeterRequest): Promise<VerifyResult>;
   verifySmartcard?(req: VerifySmartcardRequest): Promise<VerifyResult>;
+  /** Ask the provider what happened to an earlier order (used to settle pending orders). */
+  requery?(reference: string): Promise<ProviderResult>;
+  /** The provider's current data plans for a network, so admins can pick real plan codes. */
+  dataPlans?(network: Network): Promise<ProviderPlan[]>;
   /** Provider wallet balance in Naira, for low-balance alerts. */
   balance?(): Promise<number>;
 }

@@ -10,6 +10,22 @@
   let editingId: string | null = null;
   let showAddForm = false;
 
+  // Real plan codes from the provider (VTpass), so the API Plan ID is never guessed.
+  type ProviderPlan = { code: string; name: string; amount: number };
+  let providerPlans: ProviderPlan[] = [];
+  let loadingPlans = false;
+  async function loadProviderPlans() {
+    loadingPlans = true; providerPlans = [];
+    try {
+      const res = await fetch(`/api/admin/provider-plans?network=${form.network}`);
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.ok) { showToast(data?.error ?? 'Could not load provider plans', 'error'); return; }
+      providerPlans = data.plans;
+      if (!providerPlans.length) showToast('The provider returned no plans for this network', 'error');
+    } catch { showToast('Network problem loading provider plans', 'error'); }
+    finally { loadingPlans = false; }
+  }
+
   let form = {
     network: 'MTN' as Network,
     type: 'SME' as DataPlanType,
@@ -109,7 +125,12 @@
           {#each DATA_PLAN_TYPES as t}<option value={t.code}>{t.label}</option>{/each}
         </select></label>
       <label class="flex flex-col gap-1 text-xs"><span class="font-medium text-ink/60">API Plan ID</span>
-        <input type="text" bind:value={form.apiPlanId} placeholder="e.g. mtn-sme-1gb" class="rounded-lg border border-fanu-100 px-2.5 py-2 text-sm font-mono" /></label>
+        <input type="text" bind:value={form.apiPlanId} placeholder="e.g. mtn-sme-1gb" class="rounded-lg border border-fanu-100 px-2.5 py-2 text-sm font-mono" />
+        <button type="button" on:click={loadProviderPlans} disabled={loadingPlans}
+          class="mt-1 self-start text-[11px] font-semibold text-fanu-700 hover:underline disabled:opacity-50">
+          {loadingPlans ? 'Loading…' : `Pick from provider (${form.network})`}
+        </button>
+      </label>
       <label class="flex flex-col gap-1 text-xs"><span class="font-medium text-ink/60">Size (number)</span>
         <input type="number" min="0" step="0.5" bind:value={form.sizeValue} class="rounded-lg border border-fanu-100 px-2.5 py-2 text-sm" /></label>
       <label class="flex flex-col gap-1 text-xs"><span class="font-medium text-ink/60">Unit</span>
@@ -122,6 +143,19 @@
       <label class="flex flex-col gap-1 text-xs"><span class="font-medium text-ink/60">Price (₦)</span>
         <input type="number" min="0" bind:value={form.price} class="rounded-lg border border-fanu-100 px-2.5 py-2 text-sm" /></label>
     </div>
+    {#if providerPlans.length}
+      <label class="mt-3 flex flex-col gap-1 text-xs">
+        <span class="font-medium text-ink/60">Provider plans — choose one to fill the plan code</span>
+        <select class="rounded-lg border border-fanu-100 px-2.5 py-2 text-sm"
+          on:change={(e) => { form.apiPlanId = e.currentTarget.value; }}>
+          <option value="">Select a plan…</option>
+          {#each providerPlans as p}
+            <option value={p.code}>{p.name} — {formatNaira(p.amount)} ({p.code})</option>
+          {/each}
+        </select>
+        <span class="text-[10px] text-ink/40">The amount shown is what the provider charges you. Set your own selling price below.</span>
+      </label>
+    {/if}
     <p class="mt-2 text-[11px] text-ink/40">Display: <strong>{form.sizeValue}{form.sizeUnit}</strong> · {form.validity} · {formatNaira(form.price)}</p>
     <div class="mt-3 flex gap-2">
       <button type="button" on:click={saveForm} class="rounded-lg bg-fanu-600 px-4 py-2 text-xs font-semibold text-white hover:bg-fanu-700">Save</button>

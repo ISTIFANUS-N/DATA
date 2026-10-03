@@ -1,5 +1,5 @@
 import { env } from '$env/dynamic/private';
-import type { Network, ProviderAdapter, ProviderResult, VerifyResult } from './types';
+import type { Network, ProviderAdapter, ProviderPlan, ProviderResult, VerifyResult } from './types';
 import { ProviderUnavailable } from './types';
 
 const AIRTIME_SERVICE: Record<Network, string> = {
@@ -31,6 +31,27 @@ function headers() {
   };
 }
 
+/** GET requests authenticate with the public key instead of the secret key. */
+function readHeaders() {
+  if (!env.VTPASS_API_KEY || !env.VTPASS_PUBLIC_KEY) {
+    throw new ProviderUnavailable('VTpass api/public keys are not set');
+  }
+  return { 'api-key': env.VTPASS_API_KEY, 'public-key': env.VTPASS_PUBLIC_KEY };
+}
+
+// Codes VTpass documents as definite failures (nothing was delivered or charged).
+// Anything else unexpected is treated as pending, as VTpass advises, and settled with a requery.
+const FAILED_CODES = new Set(['010', '011', '012', '013', '016', '018', '021', '022']);
+
+/** Turns a VTpass pay/requery reply into our result. */
+function interpret(json: any): ProviderResult {
+  const tx = json?.content?.transactions;
+  const message = json?.response_description;
+  if (json?.code === '000') return { status: mapStatus(tx?.status), providerRef: tx?.transactionId, message };
+  if (FAILED_CODES.has(String(json?.code))) return { status: 'failed', message: message ?? 'Provider rejected the request' };
+  return { status: 'pending', message: message ?? 'Awaiting provider confirmation' };
+}
+
 function mapStatus(s: unknown): ProviderResult['status'] {
   switch (String(s ?? '').toLowerCase()) {
     case 'delivered': return 'success';
@@ -50,13 +71,7 @@ async function pay(body: Record<string, unknown>): Promise<ProviderResult> {
     const json = await res.json().catch(() => null);
     if (!json) return { status: 'pending', message: 'Unreadable provider response' };
 
-    const tx = json.content?.transactions;
-    // "000" = request processed (check the transaction status); "099" = still processing.
-    if (json.code === '000') {
-      return { status: mapStatus(tx?.status), providerRef: tx?.transactionId, message: json.response_description };
-    }
-    if (json.code === '099') return { status: 'pending', message: json.response_description };
-    return { status: 'failed', message: json.response_description ?? 'Provider rejected the request' };
+    return interpret(json);
   } catch (e) {
     if (e instanceof ProviderUnavailable) throw e;
     // Timeout / network drop: the request may have gone through. Don't refund blindly.
@@ -123,8 +138,33 @@ export function createVtpass(): ProviderAdapter {
 
     verifySmartcard: (r) => verify({ billersCode: r.smartcardNumber, serviceID: CABLE_SERVICE[r.provider] }),
 
+    async requery(reference) {
+      try {
+        const res = await fetch(`${baseUrl()}/requery`, {
+          method: 'POST', headers: headers(), body: JSON.stringify({ request_id: reference })
+        });
+        const json = await res.json().catch(() => null);
+        return json ? interpret(json) : { status: 'pending', message: 'Unreadable provider response' };
+      } catch (e) {
+        if (e instanceof ProviderUnavailable) throw e;
+        return { status: 'pending', message: 'No response from provider' };
+      }
+    },
+
+    async dataPlans(network): Promise<ProviderPlan[]> {
+      const res = await fetch(`${baseUrl()}/service-variations?serviceID=${DATA_SERVICE[network]}`, { headers: readHeaders() });
+      const json = await res.json();
+      // VTpass has returned this list under both spellings.
+      const list = json?.content?.variations ?? json?.content?.varations ?? [];
+      return list.map((v: any) => ({
+        code: String(v.variation_code),
+        name: String(v.name),
+        amount: Number(v.variation_amount)
+      }));
+    },
+
     async balance() {
-      const res = await fetch(`${baseUrl()}/balance`, { headers: headers() });
+      const res = await fetch(`${baseUrl()}/balance`, { headers: readHeaders() });
       const json = await res.json();
       return Number(json?.contents?.balance ?? 0);
     }
