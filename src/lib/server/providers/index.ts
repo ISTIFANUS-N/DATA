@@ -1,5 +1,6 @@
 import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
+import { createFlowpay } from './flowpay';
 import { createMock } from './mock';
 import { createVtpass } from './vtpass';
 import type { ProviderAdapter, ProviderService } from './types';
@@ -8,6 +9,7 @@ import { ProviderUnavailable } from './types';
 // Add new providers here: one line per API.
 const REGISTRY: Record<string, () => ProviderAdapter> = {
   vtpass: createVtpass,
+  flowpay: createFlowpay,
   mock: createMock
 };
 

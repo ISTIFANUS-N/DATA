@@ -62,6 +62,22 @@
     editNote = '';
   }
 
+  let checkingId: string | null = null;
+  async function checkWithProvider(id: string) {
+    checkingId = id;
+    try {
+      const res = await fetch('/api/purchase/requery', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ transactionId: id })
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.ok) { showToast(data?.error ?? 'Could not check this order', 'error'); return; }
+      if (!data.changed) { showToast(data.status === 'pending' ? 'Still pending at the provider' : `Already ${data.status}`); return; }
+      showToast(data.status === 'success' ? 'Delivered — marked successful' : 'Failed at the provider — customer refunded');
+      await loadAllTransactionsForAdmin();
+    } catch { showToast('Network problem. Try again.', 'error'); }
+    finally { checkingId = null; }
+  }
+
   function setEditStatus(s: string) {
     editStatus = s as Transaction['status'];
   }
@@ -142,6 +158,16 @@
             >
               Edit status
             </button>
+            {#if tx.status === 'pending' && (tx.type === 'airtime' || tx.type === 'data')}
+              <button
+                type="button"
+                on:click={() => checkWithProvider(tx.id)}
+                disabled={checkingId === tx.id}
+                class="mt-0.5 block w-full text-right text-[11px] font-semibold text-spark-600 hover:underline disabled:opacity-50"
+              >
+                {checkingId === tx.id ? 'Checking…' : 'Check with provider'}
+              </button>
+            {/if}
           </div>
         </div>
 

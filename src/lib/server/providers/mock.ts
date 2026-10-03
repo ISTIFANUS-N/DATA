@@ -23,6 +23,11 @@ export function createMock(): ProviderAdapter {
     data: async (r) => respond(r.phone),
     verifyMeter: (r) => mockVerify(r.meterNumber),
     verifySmartcard: (r) => mockVerify(r.smartcardNumber),
+    requery: async () => ({ status: 'success' as const }),
+    dataPlans: async (n) => [
+      { code: `${n.toLowerCase()}-mock-1gb`, name: 'Mock 1GB - 30 days', amount: 500 },
+      { code: `${n.toLowerCase()}-mock-2gb`, name: 'Mock 2GB - 30 days', amount: 1000 }
+    ],
     balance: async () => 100000
   };
 }
