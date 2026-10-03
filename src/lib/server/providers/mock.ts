@@ -8,12 +8,21 @@ function respond(phone: string): ProviderResult {
   return { status: 'success', providerRef: `MOCK${Date.now()}` };
 }
 
+// Numbers ending in 00 simulate "no account found".
+function mockVerify(n: string) {
+  return Promise.resolve(n.endsWith('00')
+    ? { valid: false, error: 'No account found for this number. Check it and try again.' }
+    : { valid: true, customerName: 'MOCK CUSTOMER', address: '1 Test Street, Lagos' });
+}
+
 export function createMock(): ProviderAdapter {
   return {
     id: 'mock',
     name: 'Mock provider',
     airtime: async (r) => respond(r.phone),
     data: async (r) => respond(r.phone),
+    verifyMeter: (r) => mockVerify(r.meterNumber),
+    verifySmartcard: (r) => mockVerify(r.smartcardNumber),
     balance: async () => 100000
   };
 }

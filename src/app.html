@@ -23,29 +23,27 @@
       })();
     </script>
     <style>
-      /* Short launch animation, shown only when opened as an installed app. */
+      /* Launch screen: the full logo is shown immediately for a few seconds on mobile / installed app. */
       #stx-splash { display: none; position: fixed; inset: 0; z-index: 99999; background: #fff;
-        flex-direction: column; align-items: center; justify-content: center; gap: 24px; }
-      html.splash-on #stx-splash { display: flex; animation: stx-out .4s ease 1.55s forwards; }
-      #stx-splash img { width: min(80vw, 420px); height: auto; opacity: 0;
-        animation: stx-pop .7s cubic-bezier(.2, .9, .3, 1.15) .05s forwards; }
+        flex-direction: column; align-items: center; justify-content: center; gap: 28px; }
+      html.splash-on #stx-splash { display: flex; animation: stx-out .45s ease 3.4s forwards; }
+      #stx-splash img { width: min(84vw, 440px); height: auto; }
       #stx-splash .bar { width: min(46vw, 200px); height: 4px; border-radius: 4px; background: #e3eee5; overflow: hidden; }
       #stx-splash .bar i { display: block; height: 100%; background: linear-gradient(90deg, #166029, #fbb03b);
-        transform: scaleX(0); transform-origin: left; animation: stx-fill .9s ease-in-out .55s forwards; }
-      @keyframes stx-pop { from { opacity: 0; transform: scale(.82) translateY(10px); } to { opacity: 1; transform: none; } }
+        transform: scaleX(0); transform-origin: left; animation: stx-fill 3s ease-in-out .2s forwards; }
       @keyframes stx-fill { to { transform: scaleX(1); } }
       @keyframes stx-out { to { opacity: 0; visibility: hidden; } }
       @media (prefers-reduced-motion: reduce) {
-        #stx-splash img { animation: stx-fade .3s ease forwards; transform: none; }
         #stx-splash .bar { display: none; }
-        @keyframes stx-fade { to { opacity: 1; } }
+        html.splash-on #stx-splash { animation-duration: .2s; animation-delay: 2.5s; }
       }
     </style>
     <script>
       (function () {
         try {
           var standalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
-          if (standalone && !sessionStorage.getItem('stx_splash')) {
+          var mobile = window.matchMedia('(max-width: 767px)').matches;
+          if ((standalone || mobile) && !sessionStorage.getItem('stx_splash')) {
             sessionStorage.setItem('stx_splash', '1');
             document.documentElement.classList.add('splash-on');
           }

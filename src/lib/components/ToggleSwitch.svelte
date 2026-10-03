@@ -18,7 +18,9 @@
     aria-checked={checked}
     on:click={() => onChange(!checked)}
     class="relative flex h-6 w-20 shrink-0 items-center rounded-full transition-colors"
-    style={checked ? 'background:#166029' : 'background:#d8d5cd'}
+    class:bg-fanu-600={checked}
+    class:bg-ink={!checked}
+    class:bg-opacity-25={!checked}
   >
     <!-- Text labels inside the track -->
     <span
@@ -31,7 +33,7 @@
       class="absolute right-1.5 text-[9px] font-bold leading-none transition-opacity"
       class:opacity-100={!checked}
       class:opacity-0={checked}
-      style="color:rgba(22,33,26,0.55)"
+      style="color:rgb(var(--c-ink) / 0.75)"
     >OFF</span>
     <!-- Knob -->
     <span

@@ -104,7 +104,7 @@
       <button type="button" on:click={() => pickNetworkManually(n.code)}
         class="flex flex-col items-center gap-1.5 rounded-xl border py-2.5 transition"
         class:border-fanu-500={network === n.code}
-        style={network === n.code ? `background:${n.bgColor}` : ''}
+        class:bg-fanu-50={network === n.code}
         class:border-fanu-100={network !== n.code}
       >
         <NetworkLogo network={n.code} size="sm" />
@@ -160,7 +160,8 @@
             class:border-fanu-600={selectedPlan?.id === plan.id}
             class:shadow-md={selectedPlan?.id === plan.id}
             class:border-fanu-100={selectedPlan?.id !== plan.id}
-            style={selectedPlan?.id === plan.id ? `background:${NETWORKS.find(n=>n.code===network)?.bgColor}` : 'background:#fff'}
+            class:bg-fanu-50={selectedPlan?.id === plan.id}
+            class:bg-white={selectedPlan?.id !== plan.id}
           >
             <p class="font-display text-lg font-bold leading-none text-ink">{plan.sizeValue}</p>
             <p class="text-[10px] font-bold text-ink/50">{plan.sizeUnit}</p>

@@ -13,8 +13,8 @@
 </script>
 
 <nav
-  class="fixed bottom-0 left-0 right-0 z-40 border-t border-fanu-100 bg-white/95 backdrop-blur print:hidden
-         supports-[backdrop-filter]:bg-white/80 md:hidden"
+  class="fixed bottom-0 left-0 right-0 z-40 border-t border-fanu-100 bg-white/95 backdrop-blur print:hidden dark:bg-[#111b15]/95
+         supports-[backdrop-filter]:bg-white/80 dark:supports-[backdrop-filter]:bg-[#111b15]/90 md:hidden"
   aria-label="Primary"
 >
   <div class="mx-auto flex max-w-md items-stretch justify-around px-2 py-1.5">
@@ -24,7 +24,7 @@
         class="flex flex-1 flex-col items-center gap-1 rounded-xl px-2 py-1.5 text-[11px] font-medium transition-colors"
         class:text-fanu-600={isActive(tab.href)}
         class:text-ink={!isActive(tab.href)}
-        class:opacity-60={!isActive(tab.href)}
+        class:opacity-75={!isActive(tab.href)}
         aria-current={isActive(tab.href) ? 'page' : undefined}
       >
         <span

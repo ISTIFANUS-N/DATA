@@ -112,7 +112,7 @@
       <form on:submit|preventDefault={handleSubmit} class="flex flex-col gap-3">
         <label class="flex flex-col gap-1.5">
           <span class="text-xs font-semibold text-ink/60">Full name</span>
-          <input type="text" bind:value={fullName} required placeholder="Ada Okafor"
+          <input type="text" bind:value={fullName} required placeholder="Tsintop Yashe"
             class="rounded-xl border border-fanu-100 px-3.5 py-3 text-sm focus:border-fanu-500 focus:outline-none" />
         </label>
 

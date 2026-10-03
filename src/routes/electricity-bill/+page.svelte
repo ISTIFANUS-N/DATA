@@ -4,7 +4,7 @@
   import { goto } from '$app/navigation';
   import { DISCOS } from '$lib/data/catalog';
   import { purchaseService, walletBalance, beneficiaries, isBeneficiarySaved } from '$lib/stores/db';
-  import { mockValidateAccount, type ValidationResult } from '$lib/validation';
+  import { verifyAccount } from '$lib/validation';
   import { showToast } from '$lib/stores/toast';
   import { formatNaira, formatDate } from '$lib/format';
   import PageHeader from '$lib/components/PageHeader.svelte';
@@ -34,19 +34,22 @@
 
   $: meterBeneficiaries = $beneficiaries.filter((b) => b.kind === 'meter');
 
-  $: void runValidation(meterNumber, disco);
+  $: void runValidation(meterNumber, disco, meterType);
 
-  function runValidation(value: string, currentDisco: string) {
-    if (!currentDisco || value.trim().length < 6) {
+  let validationTimer: ReturnType<typeof setTimeout>;
+  function runValidation(value: string, currentDisco: string, type: string) {
+    clearTimeout(validationTimer);
+    const number = value.replace(/\s/g, '');
+    if (!currentDisco || number.length < 10) {
       validationState = 'idle';
       return;
     }
     const token = ++validationToken;
     validationState = 'validating';
 
-    // timeout removed — now truly async
-    (async () => {
-      const result: ValidationResult = await mockValidateAccount(value, 10);
+    // Wait for a pause in typing, then ask the provider who owns this meter.
+    validationTimer = setTimeout(async () => {
+      const result = await verifyAccount({ kind: 'electricity', code: currentDisco, number, meterType: type });
       if (token !== validationToken) return;
       if (result.valid) {
         validationState = 'valid';
@@ -55,7 +58,7 @@
         validationState = 'invalid';
         validationError = result.error ?? '';
       }
-    })();
+    }, 600);
   }
 
   function pickBeneficiary(b: Beneficiary) {

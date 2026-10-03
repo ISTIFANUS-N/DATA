@@ -16,20 +16,20 @@
 
 <div class="relative rounded-card bg-fanu-600 px-5 pt-5 pb-5 text-white shadow-lg shadow-fanu-900/10">
   <!-- Top row: balance + Fund -->
-  <div class="flex items-start justify-between">
-    <div>
-      <p class="flex items-center gap-2 text-sm font-medium text-white/85">
+  <div class="flex items-start justify-between gap-3">
+    <div class="min-w-0">
+      <p class="flex items-center gap-2 text-xs font-medium text-white/85 sm:text-sm">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
         Wallet balance
       </p>
-      <p class="mt-2 font-mono text-[34px] font-bold tabular-nums leading-none">
+      <p class="mt-2 truncate font-mono text-[26px] font-bold tabular-nums leading-none sm:text-[34px]">
         {formatNaira(balance)}
       </p>
     </div>
     <button
       type="button"
       on:click={onFund}
-      class="shrink-0 rounded-xl bg-spark-500 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-spark-600 active:scale-95"
+      class="shrink-0 self-center whitespace-nowrap rounded-xl bg-spark-500 px-3.5 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-spark-600 active:scale-95 sm:px-4 sm:py-2.5 sm:text-sm"
     >
       + Fund
     </button>

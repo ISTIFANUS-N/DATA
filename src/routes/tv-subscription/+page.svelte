@@ -5,7 +5,7 @@
   import { type CablePlan } from '$lib/data/catalog';
   import { cablePlans } from '$lib/stores/catalog';
   import { purchaseService, walletBalance, beneficiaries, isBeneficiarySaved, currentProfile } from '$lib/stores/db';
-  import { mockValidateAccount, type ValidationResult } from '$lib/validation';
+  import { verifyAccount } from '$lib/validation';
   import { applyPackagePricing, packageLabel } from '$lib/pricing';
   import { showToast } from '$lib/stores/toast';
   import { formatNaira, formatDate } from '$lib/format';
@@ -44,19 +44,22 @@
     if (selectedPlan && selectedPlan.provider !== provider) selectedPlan = null;
   }
 
-  $: void runValidation(smartcardNumber);
+  $: void runValidation(smartcardNumber, provider);
 
-  function runValidation(value: string) {
-    if (value.trim().length < 8) {
+  let validationTimer: ReturnType<typeof setTimeout>;
+  function runValidation(value: string, currentProvider: string) {
+    clearTimeout(validationTimer);
+    const number = value.replace(/\s/g, '');
+    if (number.length < 10) {
       validationState = 'idle';
       return;
     }
     const token = ++validationToken;
     validationState = 'validating';
 
-    // timeout removed — now truly async
-    (async () => {
-      const result: ValidationResult = await mockValidateAccount(value, 8);
+    // Wait for a pause in typing, then ask the provider who owns this smartcard.
+    validationTimer = setTimeout(async () => {
+      const result = await verifyAccount({ kind: 'cable', code: currentProvider, number });
       if (token !== validationToken) return;
       if (result.valid) {
         validationState = 'valid';
@@ -65,7 +68,7 @@
         validationState = 'invalid';
         validationError = result.error ?? '';
       }
-    })();
+    }, 600);
   }
 
   function pickBeneficiary(b: Beneficiary) {

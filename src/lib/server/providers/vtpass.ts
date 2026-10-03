@@ -1,5 +1,5 @@
 import { env } from '$env/dynamic/private';
-import type { Network, ProviderAdapter, ProviderResult } from './types';
+import type { Network, ProviderAdapter, ProviderResult, VerifyResult } from './types';
 import { ProviderUnavailable } from './types';
 
 const AIRTIME_SERVICE: Record<Network, string> = {
@@ -8,6 +8,13 @@ const AIRTIME_SERVICE: Record<Network, string> = {
 const DATA_SERVICE: Record<Network, string> = {
   MTN: 'mtn-data', GLO: 'glo-data', AIRTEL: 'airtel-data', '9MOBILE': 'etisalat-data'
 };
+
+const ELECTRICITY_SERVICE: Record<string, string> = {
+  IKEDC: 'ikeja-electric', EKEDC: 'eko-electric', AEDC: 'abuja-electric', PHEDC: 'portharcourt-electric',
+  KEDCO: 'kano-electric', IBEDC: 'ibadan-electric', EEDC: 'enugu-electric', JEDC: 'jos-electric',
+  KAEDCO: 'kaduna-electric', YEDC: 'yola-electric', BEDC: 'benin-electric', ABA: 'aba-electric'
+};
+const CABLE_SERVICE: Record<string, string> = { DSTV: 'dstv', GOTV: 'gotv', STARTIMES: 'startimes' };
 
 function baseUrl() {
   return env.VTPASS_BASE_URL || 'https://sandbox.vtpass.com/api';
@@ -59,6 +66,35 @@ async function pay(body: Record<string, unknown>): Promise<ProviderResult> {
   }
 }
 
+/** Asks VTpass who owns a meter / smartcard number. Throws ProviderUnavailable if keys are missing. */
+async function verify(body: Record<string, unknown>): Promise<VerifyResult> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 20_000);
+  try {
+    const res = await fetch(`${baseUrl()}/merchant-verify`, {
+      method: 'POST', headers: headers(), body: JSON.stringify(body), signal: ctrl.signal
+    });
+    const json = await res.json().catch(() => null);
+    if (!json) return { valid: false, error: 'The verification service sent an unreadable reply. Try again.' };
+
+    const c = json.content ?? {};
+    const wrong = c.error || c.WrongBillersCode === true || c.WrongBillersCode === 'true';
+    if (json.code === '000' && !wrong) {
+      return {
+        valid: true,
+        customerName: String(c.Customer_Name ?? c.customerName ?? 'Account verified').trim(),
+        address: c.Address ? String(c.Address).trim() : undefined
+      };
+    }
+    return { valid: false, error: 'No account found for this number. Check it and try again.' };
+  } catch (e) {
+    if (e instanceof ProviderUnavailable) throw e;
+    return { valid: false, error: 'Could not reach the verification service. Please try again.' };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export function createVtpass(): ProviderAdapter {
   return {
     id: 'vtpass',
@@ -78,6 +114,14 @@ export function createVtpass(): ProviderAdapter {
       variation_code: r.planCode,
       phone: r.phone
     }),
+
+    verifyMeter: (r) => {
+      const serviceID = ELECTRICITY_SERVICE[r.disco];
+      if (!serviceID) return Promise.resolve({ valid: false, error: 'Unsupported electricity company.' });
+      return verify({ billersCode: r.meterNumber, serviceID, type: r.meterType });
+    },
+
+    verifySmartcard: (r) => verify({ billersCode: r.smartcardNumber, serviceID: CABLE_SERVICE[r.provider] }),
 
     async balance() {
       const res = await fetch(`${baseUrl()}/balance`, { headers: headers() });

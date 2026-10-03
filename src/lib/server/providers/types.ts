@@ -1,5 +1,5 @@
 export type Network = 'MTN' | 'GLO' | 'AIRTEL' | '9MOBILE';
-export type ProviderService = 'airtime' | 'data';
+export type ProviderService = 'airtime' | 'data' | 'electricity' | 'cable';
 
 /**
  * success  — provider confirmed delivery
@@ -29,6 +29,24 @@ export interface DataRequest {
   amount: number;
 }
 
+export interface VerifyMeterRequest {
+  disco: string;          // DisCo code, e.g. IKEDC
+  meterNumber: string;
+  meterType: 'prepaid' | 'postpaid';
+}
+
+export interface VerifySmartcardRequest {
+  provider: 'DSTV' | 'GOTV' | 'STARTIMES';
+  smartcardNumber: string;
+}
+
+export interface VerifyResult {
+  valid: boolean;
+  customerName?: string;
+  address?: string;
+  error?: string; // shown to the customer when valid is false
+}
+
 /**
  * To add a new API: create a file that returns one of these, then register
  * it in providers/index.ts. Implement only the services that provider offers.
@@ -39,6 +57,9 @@ export interface ProviderAdapter {
   name: string;
   airtime?(req: AirtimeRequest): Promise<ProviderResult>;
   data?(req: DataRequest): Promise<ProviderResult>;
+  /** Look up the customer behind a meter / smartcard number. */
+  verifyMeter?(req: VerifyMeterRequest): Promise<VerifyResult>;
+  verifySmartcard?(req: VerifySmartcardRequest): Promise<VerifyResult>;
   /** Provider wallet balance in Naira, for low-balance alerts. */
   balance?(): Promise<number>;
 }
