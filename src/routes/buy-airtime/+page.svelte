@@ -10,6 +10,7 @@
   import { showToast } from '$lib/stores/toast';
   import { formatNaira, formatDate } from '$lib/format';
   import PageHeader from '$lib/components/PageHeader.svelte';
+  import BrandLogo from '$lib/components/BrandLogo.svelte';
   import PurchaseConfirm from '$lib/components/PurchaseConfirm.svelte';
   import SaveBeneficiaryPrompt from '$lib/components/SaveBeneficiaryPrompt.svelte';
   import BeneficiaryChips from '$lib/components/BeneficiaryChips.svelte';
@@ -151,7 +152,7 @@
           class:bg-fanu-50={network === n.code}
           class:border-fanu-100={network !== n.code}
         >
-          <span class="h-6 w-6 rounded-full" style="background:{n.color}"></span>
+          <BrandLogo code={n.code} size="sm" />
           {n.label}
         </button>
       {/each}
@@ -182,12 +183,17 @@
         <button
           type="button"
           on:click={() => (amount = preset)}
-          class="rounded-lg border py-2.5 text-sm font-semibold transition"
+          class="flex flex-col items-center rounded-lg border py-2 text-sm font-semibold transition"
           class:border-fanu-500={amount === preset}
           class:bg-fanu-50={amount === preset}
           class:border-fanu-100={amount !== preset}
         >
           ₦{preset.toLocaleString()}
+          {#if airtimeCashback(preset, network, pkg, $cashbackRates) > 0}
+            <span class="mt-0.5 text-[10px] font-medium text-fanu-700">
+              +{formatNaira(airtimeCashback(preset, network, pkg, $cashbackRates))} back
+            </span>
+          {/if}
         </button>
       {/each}
     </div>

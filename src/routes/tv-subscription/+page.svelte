@@ -10,6 +10,7 @@
   import { showToast } from '$lib/stores/toast';
   import { formatNaira, formatDate } from '$lib/format';
   import PageHeader from '$lib/components/PageHeader.svelte';
+  import BrandLogo from '$lib/components/BrandLogo.svelte';
   import PurchaseConfirm from '$lib/components/PurchaseConfirm.svelte';
   import SaveBeneficiaryPrompt from '$lib/components/SaveBeneficiaryPrompt.svelte';
   import BeneficiaryChips from '$lib/components/BeneficiaryChips.svelte';
@@ -144,12 +145,13 @@
         <button
           type="button"
           on:click={() => (provider = p)}
-          class="rounded-xl border py-2.5 text-sm font-semibold transition"
+          class="flex flex-col items-center gap-1.5 rounded-xl border py-3 text-xs font-semibold transition"
           class:border-fanu-500={provider === p}
           class:bg-fanu-50={provider === p}
           class:border-fanu-100={provider !== p}
         >
-          {p}
+          <BrandLogo code={p} size="md" />
+          {p === 'DSTV' ? 'DStv' : p === 'GOTV' ? 'GOtv' : 'StarTimes'}
         </button>
       {/each}
     </div>

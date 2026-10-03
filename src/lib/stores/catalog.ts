@@ -93,6 +93,13 @@ const DEFAULT_DISCOS: DiscoSetting[] = _DISCOS.map((d) => ({ ...d, isActive: tru
 
 export const discoSettings = persisted<DiscoSetting[]>('fanu_disco_settings', DEFAULT_DISCOS);
 
+// Add any DisCos introduced after a browser first saved its list.
+discoSettings.update((list) => {
+  const have = new Set(list.map((d) => d.code));
+  const missing = DEFAULT_DISCOS.filter((d) => !have.has(d.code));
+  return missing.length ? [...list, ...missing] : list;
+});
+
 export function adminUpdateDisco(code: string, updates: Partial<Omit<DiscoSetting, 'code'>>): void {
   discoSettings.update((list) => list.map((d) => d.code === code ? { ...d, ...updates } : d));
 }

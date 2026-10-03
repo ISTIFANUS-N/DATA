@@ -8,6 +8,7 @@
   import { showToast } from '$lib/stores/toast';
   import { formatNaira, formatDate } from '$lib/format';
   import PageHeader from '$lib/components/PageHeader.svelte';
+  import BrandLogo from '$lib/components/BrandLogo.svelte';
   import PurchaseConfirm from '$lib/components/PurchaseConfirm.svelte';
   import SaveBeneficiaryPrompt from '$lib/components/SaveBeneficiaryPrompt.svelte';
   import BeneficiaryChips from '$lib/components/BeneficiaryChips.svelte';
@@ -124,18 +125,22 @@
 {:else}
 {#if step === 'form'}
   <div class="px-4 py-5">
-    <label class="mb-5 flex flex-col gap-1.5">
-      <span class="text-xs font-medium text-ink/60">Distribution company</span>
-      <select
-        bind:value={disco}
-        class="rounded-xl border border-fanu-100 bg-white px-3.5 py-3 text-sm focus:border-fanu-500"
-      >
-        <option value="" disabled selected>Select provider</option>
-        {#each DISCOS as d}
-          <option value={d.code}>{d.label}</option>
-        {/each}
-      </select>
-    </label>
+    <p class="mb-2 text-xs font-medium text-ink/60">Distribution company</p>
+    <div class="mb-5 grid grid-cols-3 gap-2">
+      {#each DISCOS as d}
+        <button
+          type="button"
+          on:click={() => (disco = d.code)}
+          class="flex flex-col items-center gap-1.5 rounded-xl border px-1 py-3 text-center transition"
+          class:border-fanu-500={disco === d.code}
+          class:bg-fanu-50={disco === d.code}
+          class:border-fanu-100={disco !== d.code}
+        >
+          <BrandLogo code={d.code} size="md" />
+          <span class="text-[10px] font-semibold leading-tight text-ink/80">{d.label.replace(/ \(.*\)$/, '')}</span>
+        </button>
+      {/each}
+    </div>
 
     <p class="mb-2 text-xs font-medium text-ink/60">Meter type</p>
     <div class="mb-5 grid grid-cols-2 gap-2">

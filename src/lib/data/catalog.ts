@@ -101,7 +101,13 @@ export const DISCOS: Disco[] = [
   { code: 'AEDC', label: 'Abuja Electric (AEDC)' },
   { code: 'PHEDC', label: 'Port Harcourt Electric (PHEDC)' },
   { code: 'KEDCO', label: 'Kano Electric (KEDCO)' },
-  { code: 'IBEDC', label: 'Ibadan Electric (IBEDC)' }
+  { code: 'IBEDC', label: 'Ibadan Electric (IBEDC)' },
+  { code: 'EEDC', label: 'Enugu Electric (EEDC)' },
+  { code: 'JEDC', label: 'Jos Electric (JEDC)' },
+  { code: 'KAEDCO', label: 'Kaduna Electric (KAEDCO)' },
+  { code: 'YEDC', label: 'Yola Electric (YEDC)' },
+  { code: 'BEDC', label: 'Benin Electric (BEDC)' },
+  { code: 'ABA', label: 'Aba Power (ABA)' }
 ];
 
 export interface CablePlan {
