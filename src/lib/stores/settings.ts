@@ -29,6 +29,8 @@ export const DEFAULT_SUGGESTION: WelcomeSuggestion = {
 export const dashboardNotice = writable<DashboardNotice>(DEFAULT_NOTICE);
 export const welcomeSuggestion = writable<WelcomeSuggestion>(DEFAULT_SUGGESTION);
 export const airtimeCashback = writable<AirtimeCashback>(DEFAULT_AIRTIME_CASHBACK);
+/** Which data plan types customers can see. A type that is missing counts as on. */
+export const dataPlanTypes = writable<Record<string, boolean>>({});
 export const settingsLoaded = writable(false);
 
 export async function loadSettings(): Promise<void> {
@@ -43,12 +45,13 @@ export async function loadSettings(): Promise<void> {
     cashback[net] = { ...DEFAULT_AIRTIME_CASHBACK[net], ...(byKey.airtime_cashback?.[net] ?? {}) };
   }
   airtimeCashback.set(cashback);
+  dataPlanTypes.set({ ...(byKey.data_plan_types ?? {}) });
   settingsLoaded.set(true);
 }
 
 /** Admin only (enforced by RLS). */
 export async function saveSetting(
-  key: 'dashboard_notice' | 'welcome_suggestion' | 'airtime_cashback',
+  key: 'dashboard_notice' | 'welcome_suggestion' | 'airtime_cashback' | 'data_plan_types',
   value: unknown
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const { data: { user } } = await supabase.auth.getUser();

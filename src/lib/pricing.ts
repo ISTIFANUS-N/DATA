@@ -30,19 +30,37 @@ export function packageLabel(pkg: Profile['package']): string {
 export type AirtimeCashback = Record<string, Record<Profile['package'], number>>;
 
 export const DEFAULT_AIRTIME_CASHBACK: AirtimeCashback = {
-  MTN:       { smart_user: 0, reseller: 2 },
-  GLO:       { smart_user: 0, reseller: 2 },
-  AIRTEL:    { smart_user: 0, reseller: 2 },
-  '9MOBILE': { smart_user: 0, reseller: 2 }
+  MTN:       { smart_user: 0, reseller: 0 },
+  GLO:       { smart_user: 0, reseller: 0 },
+  AIRTEL:    { smart_user: 0, reseller: 0 },
+  '9MOBILE': { smart_user: 0, reseller: 0 }
 };
 
-/** Cashback in Naira, rounded down to the kobo. */
+/**
+ * Master switch. Cashback is OFF for now: customers see no cashback and none is paid.
+ * Set to true to bring it back (the admin settings and profit cap below are kept ready).
+ */
+export const CASHBACK_ENABLED = false;
+
+/** Cashback in Naira, rounded down to the kobo. Always 0 while CASHBACK_ENABLED is false. */
 export function airtimeCashback(
   faceValue: number,
   network: string | null,
   pkg: Profile['package'],
   rates: AirtimeCashback = DEFAULT_AIRTIME_CASHBACK
 ): number {
+  if (!CASHBACK_ENABLED) return 0;
   const per100 = rates[network ?? '']?.[pkg] ?? DEFAULT_AIRTIME_CASHBACK.MTN[pkg];
   return Math.floor(faceValue * per100) / 100;
+}
+
+/**
+ * Caps cashback at our profit on the order, so cashback can never push an order into a loss.
+ * `charged` is what the customer paid; `providerCost` is what the provider charged us.
+ * If the provider didn't report a cost, the configured cashback is returned unchanged.
+ */
+export function limitCashbackToMargin(due: number, charged: number, providerCost?: number): number {
+  if (providerCost === undefined || !Number.isFinite(providerCost)) return due;
+  const margin = Math.floor((charged - providerCost) * 100) / 100;
+  return Math.max(0, Math.min(due, margin));
 }

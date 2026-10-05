@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { DEFAULT_AIRTIME_CASHBACK, airtimeCashback, type AirtimeCashback } from '$lib/pricing';
+import { DEFAULT_AIRTIME_CASHBACK, airtimeCashback, limitCashbackToMargin, type AirtimeCashback } from '$lib/pricing';
 
 /** Puts a failed order's money back in the wallet. */
 export async function refundWallet(
@@ -12,12 +12,13 @@ export async function refundWallet(
 }
 
 /**
- * Pays the airtime cashback (admin-set per ₦100, per network and package) into the wallet.
+ * Pays the airtime cashback (admin-set per ₦100, per network and package) into the wallet,
+ * capped at our profit on the order when the provider reports its cost.
  * Returns the amount paid, or 0 if none was due or the credit failed.
  */
 export async function payAirtimeCashback(
   admin: SupabaseClient,
-  o: { userId: string; network: string; faceValue: number; reference: string; description: string }
+  o: { userId: string; network: string; faceValue: number; reference: string; description: string; providerCost?: number }
 ): Promise<number> {
   const { data: profile } = await admin.from('profiles').select('package').eq('id', o.userId).maybeSingle();
   const { data: setting } = await admin.from('app_settings').select('value').eq('key', 'airtime_cashback').maybeSingle();
@@ -26,7 +27,9 @@ export async function payAirtimeCashback(
   for (const net of Object.keys(DEFAULT_AIRTIME_CASHBACK)) {
     rates[net] = { ...DEFAULT_AIRTIME_CASHBACK[net], ...(setting?.value?.[net] ?? {}) };
   }
-  const due = airtimeCashback(o.faceValue, o.network, profile?.package === 'reseller' ? 'reseller' : 'smart_user', rates);
+  const configured = airtimeCashback(o.faceValue, o.network, profile?.package === 'reseller' ? 'reseller' : 'smart_user', rates);
+  // Never give back more than we actually earned on this order.
+  const due = limitCashbackToMargin(configured, o.faceValue, o.providerCost);
   if (due <= 0) return 0;
 
   const { error } = await admin.rpc('process_wallet_credit', {

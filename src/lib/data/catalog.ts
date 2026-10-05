@@ -46,48 +46,14 @@ export const DATA_PLAN_TYPES: { code: DataPlanType; label: string; blurb: string
   { code: 'CORPORATE_GIFTING', label: 'Corporate Gifting', blurb: 'Bulk plans for teams and businesses' }
 ];
 
+// Starter plans only (also seeded by supabase/data_plans.sql). Real plans live in the database
+// and are managed in Admin -> Data Plans.
 export const DEFAULT_DATA_PLANS: DataPlan[] = [
-  // ── MTN GIFTING ──────────────────────────────────────────────────────────
-  { id: 'mtn-gift-1gb-30',  network: 'MTN', apiPlanId: 'mtn-gifting-1gb',   sizeValue: 1,   sizeUnit: 'GB', validity: '30 days',  price: 650,  type: 'GIFTING',          isActive: true },
-  { id: 'mtn-gift-2gb-30',  network: 'MTN', apiPlanId: 'mtn-gifting-2gb',   sizeValue: 2,   sizeUnit: 'GB', validity: '30 days',  price: 1200, type: 'GIFTING',          isActive: true },
-  { id: 'mtn-gift-5gb-30',  network: 'MTN', apiPlanId: 'mtn-gifting-5gb',   sizeValue: 5,   sizeUnit: 'GB', validity: '30 days',  price: 2500, type: 'GIFTING',          isActive: true },
-  { id: 'mtn-gift-10gb-30', network: 'MTN', apiPlanId: 'mtn-gifting-10gb',  sizeValue: 10,  sizeUnit: 'GB', validity: '30 days',  price: 4500, type: 'GIFTING',          isActive: true },
-  // ── MTN SME ──────────────────────────────────────────────────────────────
-  { id: 'mtn-sme-500mb-30', network: 'MTN', apiPlanId: 'mtn-sme-500mb',     sizeValue: 500, sizeUnit: 'MB', validity: '30 days',  price: 135,  type: 'SME',              isActive: true },
-  { id: 'mtn-sme-1gb-30',   network: 'MTN', apiPlanId: 'mtn-sme-1gb',       sizeValue: 1,   sizeUnit: 'GB', validity: '30 days',  price: 270,  type: 'SME',              isActive: true },
-  { id: 'mtn-sme-2gb-30',   network: 'MTN', apiPlanId: 'mtn-sme-2gb',       sizeValue: 2,   sizeUnit: 'GB', validity: '30 days',  price: 540,  type: 'SME',              isActive: true },
-  { id: 'mtn-sme-5gb-30',   network: 'MTN', apiPlanId: 'mtn-sme-5gb',       sizeValue: 5,   sizeUnit: 'GB', validity: '30 days',  price: 1350, type: 'SME',              isActive: true },
-  { id: 'mtn-sme-10gb-30',  network: 'MTN', apiPlanId: 'mtn-sme-10gb',      sizeValue: 10,  sizeUnit: 'GB', validity: '30 days',  price: 2700, type: 'SME',              isActive: true },
-  // ── MTN DATA SHARE ───────────────────────────────────────────────────────
-  { id: 'mtn-share-5gb-30', network: 'MTN', apiPlanId: 'mtn-share-5gb',     sizeValue: 5,   sizeUnit: 'GB', validity: '30 days',  price: 2850, type: 'DATA_SHARE',       isActive: true },
-  { id: 'mtn-share-10gb-30',network: 'MTN', apiPlanId: 'mtn-share-10gb',    sizeValue: 10,  sizeUnit: 'GB', validity: '30 days',  price: 5100, type: 'DATA_SHARE',       isActive: true },
-  // ── MTN CORPORATE GIFTING ────────────────────────────────────────────────
-  { id: 'mtn-corp-20gb-30', network: 'MTN', apiPlanId: 'mtn-corp-gift-20gb', sizeValue: 20, sizeUnit: 'GB', validity: '30 days',  price: 8000, type: 'CORPORATE_GIFTING', isActive: true },
-  { id: 'mtn-corp-40gb-30', network: 'MTN', apiPlanId: 'mtn-corp-gift-40gb', sizeValue: 40, sizeUnit: 'GB', validity: '30 days',  price: 15000,type: 'CORPORATE_GIFTING', isActive: true },
-
-  // ── GLO ──────────────────────────────────────────────────────────────────
-  { id: 'glo-gift-1.5gb-30',  network: 'GLO', apiPlanId: 'glo-gifting-1.5gb',  sizeValue: 1.5, sizeUnit: 'GB', validity: '30 days', price: 600,  type: 'GIFTING',    isActive: true },
-  { id: 'glo-gift-4.1gb-30',  network: 'GLO', apiPlanId: 'glo-gifting-4.1gb',  sizeValue: 4.1, sizeUnit: 'GB', validity: '30 days', price: 1500, type: 'GIFTING',    isActive: true },
-  { id: 'glo-gift-10gb-30',   network: 'GLO', apiPlanId: 'glo-gifting-10gb',   sizeValue: 10,  sizeUnit: 'GB', validity: '30 days', price: 3000, type: 'GIFTING',    isActive: true },
-  { id: 'glo-sme-1.5gb-30',   network: 'GLO', apiPlanId: 'glo-sme-1.5gb',      sizeValue: 1.5, sizeUnit: 'GB', validity: '30 days', price: 450,  type: 'SME',        isActive: true },
-  { id: 'glo-sme-5gb-30',     network: 'GLO', apiPlanId: 'glo-sme-5gb',        sizeValue: 5,   sizeUnit: 'GB', validity: '30 days', price: 1700, type: 'SME',        isActive: true },
-  { id: 'glo-share-5.8gb-30', network: 'GLO', apiPlanId: 'glo-share-5.8gb',    sizeValue: 5.8, sizeUnit: 'GB', validity: '30 days', price: 2200, type: 'DATA_SHARE', isActive: true },
-  { id: 'glo-corp-18gb-30',   network: 'GLO', apiPlanId: 'glo-corp-gift-18gb', sizeValue: 18,  sizeUnit: 'GB', validity: '30 days', price: 6500, type: 'CORPORATE_GIFTING', isActive: true },
-
-  // ── AIRTEL ───────────────────────────────────────────────────────────────
-  { id: 'airtel-gift-1.5gb-30', network: 'AIRTEL', apiPlanId: 'airtel-gifting-1.5gb',  sizeValue: 1.5, sizeUnit: 'GB', validity: '30 days', price: 650,  type: 'GIFTING',    isActive: true },
-  { id: 'airtel-gift-4gb-30',   network: 'AIRTEL', apiPlanId: 'airtel-gifting-4gb',    sizeValue: 4,   sizeUnit: 'GB', validity: '30 days', price: 2000, type: 'GIFTING',    isActive: true },
-  { id: 'airtel-gift-10gb-30',  network: 'AIRTEL', apiPlanId: 'airtel-gifting-10gb',   sizeValue: 10,  sizeUnit: 'GB', validity: '30 days', price: 4000, type: 'GIFTING',    isActive: true },
-  { id: 'airtel-sme-1gb-30',    network: 'AIRTEL', apiPlanId: 'airtel-sme-1gb',        sizeValue: 1,   sizeUnit: 'GB', validity: '30 days', price: 480,  type: 'SME',        isActive: true },
-  { id: 'airtel-sme-5gb-30',    network: 'AIRTEL', apiPlanId: 'airtel-sme-5gb',        sizeValue: 5,   sizeUnit: 'GB', validity: '30 days', price: 1900, type: 'SME',        isActive: true },
-  { id: 'airtel-share-6gb-30',  network: 'AIRTEL', apiPlanId: 'airtel-share-6gb',      sizeValue: 6,   sizeUnit: 'GB', validity: '30 days', price: 2500, type: 'DATA_SHARE', isActive: true },
-  { id: 'airtel-corp-25gb-30',  network: 'AIRTEL', apiPlanId: 'airtel-corp-gift-25gb', sizeValue: 25,  sizeUnit: 'GB', validity: '30 days', price: 8500, type: 'CORPORATE_GIFTING', isActive: true },
-
-  // ── 9MOBILE ──────────────────────────────────────────────────────────────
-  { id: '9mobile-gift-1.5gb-30', network: '9MOBILE', apiPlanId: '9mobile-gifting-1.5gb', sizeValue: 1.5, sizeUnit: 'GB', validity: '30 days', price: 700,  type: 'GIFTING',    isActive: true },
-  { id: '9mobile-gift-4.5gb-30', network: '9MOBILE', apiPlanId: '9mobile-gifting-4.5gb', sizeValue: 4.5, sizeUnit: 'GB', validity: '30 days', price: 2000, type: 'GIFTING',    isActive: true },
-  { id: '9mobile-sme-1.5gb-30',  network: '9MOBILE', apiPlanId: '9mobile-sme-1.5gb',     sizeValue: 1.5, sizeUnit: 'GB', validity: '30 days', price: 550,  type: 'SME',        isActive: true },
-  { id: '9mobile-share-5gb-30',  network: '9MOBILE', apiPlanId: '9mobile-share-5gb',     sizeValue: 5,   sizeUnit: 'GB', validity: '30 days', price: 2300, type: 'DATA_SHARE', isActive: true }
+  { id: 'mtn-sme-1gb-30',       network: 'MTN',    apiPlanId: 'mtn-sme-1gb',          sizeValue: 1,   sizeUnit: 'GB', validity: '30 days', price: 270, type: 'SME',     isActive: true },
+  { id: 'mtn-sme-2gb-30',       network: 'MTN',    apiPlanId: 'mtn-sme-2gb',          sizeValue: 2,   sizeUnit: 'GB', validity: '30 days', price: 540, type: 'SME',     isActive: true },
+  { id: 'mtn-gift-1gb-30',      network: 'MTN',    apiPlanId: 'mtn-gifting-1gb',      sizeValue: 1,   sizeUnit: 'GB', validity: '30 days', price: 650, type: 'GIFTING', isActive: true },
+  { id: 'glo-gift-1.5gb-30',    network: 'GLO',    apiPlanId: 'glo-gifting-1.5gb',    sizeValue: 1.5, sizeUnit: 'GB', validity: '30 days', price: 600, type: 'GIFTING', isActive: true },
+  { id: 'airtel-gift-1.5gb-30', network: 'AIRTEL', apiPlanId: 'airtel-gifting-1.5gb', sizeValue: 1.5, sizeUnit: 'GB', validity: '30 days', price: 650, type: 'GIFTING', isActive: true }
 ];
 
 export interface Disco {

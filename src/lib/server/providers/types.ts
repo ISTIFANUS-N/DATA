@@ -12,6 +12,8 @@ export interface ProviderResult {
   status: ProviderStatus;
   providerRef?: string;
   message?: string;
+  /** What the provider actually charged us for this order (after their discount), in Naira, when they report it. */
+  cost?: number;
 }
 
 export interface AirtimeRequest {
@@ -34,6 +36,11 @@ export interface ProviderPlan {
   code: string;    // send this as DataRequest.planCode
   name: string;    // e.g. "N1,000 1.5GB - 30 days"
   amount: number;  // provider price in Naira
+  // Present when the provider gives structured plan details (used by "Import plans").
+  size?: number;
+  unit?: 'MB' | 'GB';
+  validity?: string;
+  type?: string;   // e.g. "SME", "Gifting"
 }
 
 export interface VerifyMeterRequest {

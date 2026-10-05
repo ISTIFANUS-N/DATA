@@ -4,6 +4,7 @@ import { adminClient } from '$lib/server/supabaseAdmin';
 import { getProvider, newReference } from '$lib/server/providers';
 import { ProviderUnavailable, type Network, type ProviderResult } from '$lib/server/providers/types';
 import { payAirtimeCashback, refundWallet } from '$lib/server/settle';
+import { applyPackagePricing } from '$lib/pricing';
 import { normalizePhone } from '$lib/network';
 
 const NETWORKS: Network[] = ['MTN', 'GLO', 'AIRTEL', '9MOBILE'];
@@ -31,6 +32,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
   let charge: number;
   let faceValue = 0;
   let planCode = '';
+  let planType: string | null = null;
+  let description = String(body?.description ?? `${network} ${type} · ${phone}`).slice(0, 200);
 
   if (type === 'airtime') {
     // The face value is what's charged; it is read from meta, never from the client-supplied amount.
@@ -40,11 +43,23 @@ export const POST: RequestHandler = async ({ request, locals }) => {
     }
     charge = faceValue; // customers always pay full price; any reward comes back as cashback
   } else {
-    // Data plan prices are still managed client-side, so this amount can't be verified here yet.
-    planCode = String(meta.apiPlanId ?? '').trim();
-    charge = Number(body?.amount);
-    if (!planCode) return fail('Choose a data plan.');
-    if (!Number.isFinite(charge) || charge <= 0 || charge > 100_000) return fail('Invalid amount.');
+    // The plan, its price and the provider plan code all come from our database, never from the browser.
+    const planId = String(meta.planId ?? '');
+    const { data: plan } = await admin
+      .from('catalog_data_plans').select('*').eq('id', planId).maybeSingle();
+    if (!plan || !plan.is_active) return fail('That plan is no longer available. Please pick another.');
+    if (plan.network !== network) return fail('That plan does not match the selected network.');
+
+    const { data: typeSetting } = await admin
+      .from('app_settings').select('value').eq('key', 'data_plan_types').maybeSingle();
+    if (typeSetting?.value?.[plan.plan_type] === false) return fail('That plan type is unavailable right now.');
+
+    const { data: profile } = await admin.from('profiles').select('package').eq('id', user.id).maybeSingle();
+    planCode = String(plan.api_plan_id).trim();
+    charge = applyPackagePricing(Number(plan.price), 'data', profile?.package === 'reseller' ? 'reseller' : 'smart_user');
+    planType = plan.plan_type;
+    description = `${plan.size_value}${plan.size_unit} · ${plan.validity} · ${phone}`;
+    if (!planCode) return fail('This plan is not set up yet. Please pick another.');
   }
 
   // ── Pick the provider BEFORE touching money ─────────────────────────────
@@ -73,7 +88,6 @@ export const POST: RequestHandler = async ({ request, locals }) => {
   }
 
   const reference = newReference();
-  const description = String(body?.description ?? `${network} ${type} · ${phone}`).slice(0, 200);
 
   // ── Debit, then record ─────────────────────────────────────────────────
   const { error: debitErr } = await admin.rpc('process_wallet_debit', {
@@ -97,7 +111,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
       reference,
       description,
       provider_network: network,
-      data_plan_type_used: type === 'data' ? (meta.planType ?? null) : null,
+      data_plan_type_used: type === 'data' ? planType : null,
       provider_name: provider.name
     })
     .select('id, created_at')
@@ -126,7 +140,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
   // Cashback for airtime, paid into the main wallet only once delivery is confirmed.
   const cashback = type === 'airtime' && result.status === 'success'
-    ? await payAirtimeCashback(admin, { userId: user.id, network, faceValue, reference, description })
+    ? await payAirtimeCashback(admin, { userId: user.id, network, faceValue, reference, description, providerCost: result.cost })
     : 0;
 
   return json({

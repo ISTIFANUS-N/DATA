@@ -61,7 +61,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
   } else if (tx.service_type === 'airtime') {
     cashback = await payAirtimeCashback(admin, {
       userId: tx.user_id, network: tx.provider_network ?? '', faceValue: Number(tx.amount),
-      reference: tx.reference, description: tx.description ?? ''
+      reference: tx.reference, description: tx.description ?? '', providerCost: result.cost
     });
   }
   return reply({ ok: true, status: result.status, changed: true, cashback });
