@@ -47,7 +47,10 @@ const FAILED_CODES = new Set(['010', '011', '012', '013', '016', '018', '021', '
 function interpret(json: any): ProviderResult {
   const tx = json?.content?.transactions;
   const message = json?.response_description;
-  if (json?.code === '000') return { status: mapStatus(tx?.status), providerRef: tx?.transactionId, message };
+  if (json?.code === '000') {
+    const cost = Number(tx?.total_amount);
+    return { status: mapStatus(tx?.status), providerRef: tx?.transactionId, message, cost: Number.isFinite(cost) && cost > 0 ? cost : undefined };
+  }
   if (FAILED_CODES.has(String(json?.code))) return { status: 'failed', message: message ?? 'Provider rejected the request' };
   return { status: 'pending', message: message ?? 'Awaiting provider confirmation' };
 }

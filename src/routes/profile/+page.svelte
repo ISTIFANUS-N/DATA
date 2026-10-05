@@ -85,7 +85,7 @@
   {/if}
 
   {#if $currentProfile?.role === 'admin'}
-    <a href="/admin" class="mb-3 flex w-full items-center justify-center gap-2 rounded-xl bg-ink py-3 text-sm font-semibold text-white">
+    <a href="/admin" class="mb-3 flex w-full items-center justify-center gap-2 rounded-xl bg-ink py-3 text-sm font-semibold text-white transition hover:opacity-90 dark:bg-fanu-600 dark:hover:bg-fanu-500">
       Admin dashboard
     </a>
   {/if}

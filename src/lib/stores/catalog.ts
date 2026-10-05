@@ -1,5 +1,6 @@
 import { writable, get } from 'svelte/store';
 import { persisted } from './persisted';
+import { supabase } from '$lib/supabase';
 import {
   DEFAULT_DATA_PLANS,
   DEFAULT_CABLE_PLANS,
@@ -9,7 +10,9 @@ import {
   type DataPlanType
 } from '$lib/data/catalog';
 
-export const dataPlans = persisted<DataPlan[]>('fanu_data_plans', DEFAULT_DATA_PLANS);
+// Data plans live in Supabase (supabase/data_plans.sql) so every customer sees what admins set.
+// Until the table exists or loads, the five starter plans are shown.
+export const dataPlans = writable<DataPlan[]>(DEFAULT_DATA_PLANS);
 export const cablePlans = persisted<CablePlan[]>('fanu_cable_plans', DEFAULT_CABLE_PLANS);
 
 function newId(prefix: string) {
@@ -18,22 +21,63 @@ function newId(prefix: string) {
 
 // --- Data plans ---
 
-export function adminAddDataPlan(input: Omit<DataPlan, 'id'>): DataPlan {
-  const plan: DataPlan = { ...input, id: newId('plan') };
-  dataPlans.update((list) => [plan, ...list]);
-  return plan;
+type DbResult = { ok: true } | { ok: false; error: string };
+
+const UNIT_ORDER: Record<string, number> = { MB: 0, GB: 1 };
+
+function fromRow(r: any): DataPlan {
+  return {
+    id: r.id, network: r.network, type: r.plan_type, apiPlanId: r.api_plan_id,
+    sizeValue: Number(r.size_value), sizeUnit: r.size_unit, validity: r.validity,
+    price: Number(r.price), isActive: !!r.is_active
+  };
 }
 
-export function adminUpdateDataPlan(id: string, updates: Partial<Omit<DataPlan, 'id'>>): void {
-  dataPlans.update((list) => list.map((p) => (p.id === id ? { ...p, ...updates } : p)));
+function toRow(p: Partial<DataPlan>) {
+  const row: Record<string, unknown> = {};
+  if (p.network !== undefined) row.network = p.network;
+  if (p.type !== undefined) row.plan_type = p.type;
+  if (p.apiPlanId !== undefined) row.api_plan_id = p.apiPlanId;
+  if (p.sizeValue !== undefined) row.size_value = p.sizeValue;
+  if (p.sizeUnit !== undefined) row.size_unit = p.sizeUnit;
+  if (p.validity !== undefined) row.validity = p.validity;
+  if (p.price !== undefined) row.price = p.price;
+  if (p.isActive !== undefined) row.is_active = p.isActive;
+  return row;
 }
 
-export function adminDeleteDataPlan(id: string): void {
-  dataPlans.update((list) => list.filter((p) => p.id !== id));
+export async function loadDataPlans(): Promise<void> {
+  const { data, error } = await supabase.from('catalog_data_plans').select('*');
+  if (error || !data) return; // table not created yet: keep the starter plans
+  const plans = data.map(fromRow).sort((a, b) =>
+    a.network.localeCompare(b.network) ||
+    (UNIT_ORDER[a.sizeUnit] ?? 1) - (UNIT_ORDER[b.sizeUnit] ?? 1) ||
+    a.sizeValue - b.sizeValue
+  );
+  dataPlans.set(plans);
 }
 
-export function adminResetDataPlans(): void {
-  dataPlans.set(DEFAULT_DATA_PLANS);
+async function finish(res: { error: { message: string } | null }): Promise<DbResult> {
+  if (res.error) return { ok: false, error: res.error.message };
+  await loadDataPlans();
+  return { ok: true };
+}
+
+export async function adminAddDataPlan(input: Omit<DataPlan, 'id'>): Promise<DbResult> {
+  return finish(await supabase.from('catalog_data_plans').insert({ id: newId('plan'), ...toRow(input) }));
+}
+
+export async function adminAddDataPlans(inputs: Omit<DataPlan, 'id'>[]): Promise<DbResult> {
+  if (!inputs.length) return { ok: true };
+  return finish(await supabase.from('catalog_data_plans').insert(inputs.map((i) => ({ id: newId('plan'), ...toRow(i) }))));
+}
+
+export async function adminUpdateDataPlan(id: string, updates: Partial<Omit<DataPlan, 'id'>>): Promise<DbResult> {
+  return finish(await supabase.from('catalog_data_plans').update(toRow(updates)).eq('id', id));
+}
+
+export async function adminDeleteDataPlan(id: string): Promise<DbResult> {
+  return finish(await supabase.from('catalog_data_plans').delete().eq('id', id));
 }
 
 // --- Cable plans ---
@@ -163,8 +207,8 @@ export function adminDeleteRechargeDenom(value: number): void {
 }
 
 // Per-item active toggles (granular control within a service)
-export function adminToggleDataPlan(id: string, isActive: boolean): void {
-  dataPlans.update((list) => list.map((p) => p.id === id ? { ...p, isActive } : p));
+export async function adminToggleDataPlan(id: string, isActive: boolean): Promise<DbResult> {
+  return adminUpdateDataPlan(id, { isActive });
 }
 
 export function adminToggleCablePlan(id: string, isActive: boolean): void {
@@ -180,17 +224,13 @@ export function adminToggleResultPin(id: string, isActive: boolean): void {
 }
 
 // Bulk toggle: disable/enable all plans for a specific network
-export function adminToggleNetworkDataPlans(network: string, isActive: boolean): void {
-  dataPlans.update((list) =>
-    list.map((p) => p.network === network ? { ...p, isActive } : p)
-  );
+export async function adminToggleNetworkDataPlans(network: string, isActive: boolean): Promise<DbResult> {
+  return finish(await supabase.from('catalog_data_plans').update({ is_active: isActive }).eq('network', network));
 }
 
 // Bulk toggle: disable/enable all plans of a specific type (SME, GIFTING, etc.)
-export function adminTogglePlanType(type: string, isActive: boolean): void {
-  dataPlans.update((list) =>
-    list.map((p) => p.type === type ? { ...p, isActive } : p)
-  );
+export async function adminTogglePlanType(type: string, isActive: boolean): Promise<DbResult> {
+  return finish(await supabase.from('catalog_data_plans').update({ is_active: isActive }).eq('plan_type', type));
 }
 
 // Bulk toggle: disable/enable all cable plans for a specific provider

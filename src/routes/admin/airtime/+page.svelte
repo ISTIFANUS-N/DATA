@@ -4,7 +4,7 @@
   import { showToast } from '$lib/stores/toast';
   import { formatNaira } from '$lib/format';
   import { airtimeCashback, saveSetting } from '$lib/stores/settings';
-  import type { AirtimeCashback } from '$lib/pricing';
+  import { CASHBACK_ENABLED, type AirtimeCashback } from '$lib/pricing';
 
   // Cashback per ₦100 of airtime. Local draft so typing doesn't save on every keystroke.
   let rateDraft: AirtimeCashback | null = null;
@@ -53,13 +53,16 @@
 <svelte:head><title>Airtime settings — Admin</title></svelte:head>
 
 <h1 class="mb-2 font-display text-xl font-bold text-ink">Airtime settings</h1>
-<p class="mb-6 text-sm text-ink/55">Set cashback, plus min/max limits and on/off per network.</p>
+<p class="mb-6 text-sm text-ink/55">Set min/max limits and on/off per network.</p>
 
+{#if CASHBACK_ENABLED}
 <div class="mb-6 rounded-2xl bg-white p-4 shadow-sm">
   <p class="text-sm font-semibold text-ink">Cashback per ₦100 airtime</p>
   <p class="mb-3 text-[11px] text-ink/50">
     Customers always pay full price. Enter the cashback they get back in their wallet for every ₦100 of airtime,
     paid once the airtime is delivered. For example 2 means ₦20 back on ₦1,000. Use 0 for no cashback.
+    Cashback is automatically limited to your profit on each order, so it can never cause a loss
+    (your profit = what the customer pays minus what the provider charges you).
   </p>
   {#if rateDraft}
     <div class="overflow-x-auto">
@@ -96,6 +99,11 @@
     </button>
   {/if}
 </div>
+{:else}
+<div class="mb-6 rounded-2xl border border-fanu-100 bg-fanu-50 px-4 py-3 text-xs text-ink/70">
+  Cashback is switched off for now. Customers pay the normal price and no cashback is given.
+</div>
+{/if}
 
 <div class="overflow-hidden rounded-2xl bg-white shadow-sm">
   {#each $airtimeSettings as setting (setting.network)}

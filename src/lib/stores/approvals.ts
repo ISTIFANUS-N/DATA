@@ -146,13 +146,34 @@ export async function approveChange(id: string): Promise<{ ok: true } | { ok: fa
 
       case 'add_data_plan':
       case 'update_data_plan_price':
-      case 'delete_data_plan':
+      case 'delete_data_plan': {
+        if (approval.action === 'delete_data_plan') {
+          const { error } = await supabase.from('catalog_data_plans').delete().eq('id', p.id as string);
+          if (error) applyError = error.message;
+          break;
+        }
+        const row = {
+          id:          (p.id as string) ?? `plan_${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36)}`,
+          network:     p.network,
+          plan_type:   p.type,
+          api_plan_id: p.apiPlanId,
+          size_value:  p.sizeValue,
+          size_unit:   p.sizeUnit,
+          validity:    p.validity,
+          price:       p.price,
+          is_active:   p.isActive ?? true
+        };
+        const { error } = await supabase.from('catalog_data_plans').upsert(row);
+        if (error) applyError = error.message;
+        break;
+      }
+
       case 'add_cable_plan':
       case 'update_cable_plan_price':
       case 'delete_cable_plan': {
         // These modify catalog tables directly
         const { error } = await supabase
-          .from(approval.action.includes('cable') ? 'cable_plans' : 'data_plans')
+          .from('cable_plans')
           .upsert(p as Record<string, unknown>);
         if (error) applyError = error.message;
         break;

@@ -4,6 +4,8 @@
   import { goto } from '$app/navigation';
   import { NETWORKS, DATA_PLAN_TYPES, planSizeLabel, type Network, type DataPlan, type DataPlanType } from '$lib/data/catalog';
   import { dataPlans } from '$lib/stores/catalog';
+  import { dataPlanTypes } from '$lib/stores/settings';
+  import PhoneInput from '$lib/components/PhoneInput.svelte';
   import { purchaseService, walletBalance, beneficiaries, isBeneficiarySaved, currentProfile } from '$lib/stores/db';
   import { detectNetwork, normalizePhone } from '$lib/network';
   import { applyPackagePricing, packageLabel } from '$lib/pricing';
@@ -35,7 +37,11 @@
   $: serviceEnabled = serviceToggle?.isEnabled ?? true;
   $: serviceReason = serviceToggle?.disabledReason ?? 'This service is temporarily unavailable.';
 
-  $: plansForSelection = $dataPlans.filter(p => p.network === network && p.type === planType && p.isActive);
+  $: availableTypes = DATA_PLAN_TYPES.filter(t =>
+    $dataPlanTypes[t.code] !== false &&
+    $dataPlans.some(p => p.network === network && p.type === t.code && p.isActive));
+  $: if (availableTypes.length && !availableTypes.some(t => t.code === planType)) planType = availableTypes[0].code;
+  $: plansForSelection = $dataPlans.filter(p => p.network === network && p.type === planType && p.isActive && $dataPlanTypes[p.type] !== false);
   $: phoneBeneficiaries = $beneficiaries.filter(b => b.kind === 'phone');
   $: pkg = $currentProfile?.package ?? 'smart_user';
   $: chargedPrice = selectedPlan ? applyPackagePricing(selectedPlan.price, 'data', pkg) : 0;
@@ -67,7 +73,7 @@
     (async () => {
       const result = await purchaseService({ type: 'data', amount: applyPackagePricing(plan.price, 'data', pkg),
         description: `${planSizeLabel(plan)} · ${plan.validity} · ${phoneNumber}`,
-        meta: { network, phoneNumber, planId: plan.id, apiPlanId: plan.apiPlanId, planType: plan.type } });
+        meta: { network, phoneNumber, planId: plan.id } });
       submitting = false;
       if (!result.ok) { error = result.error; step = 'form'; return; }
       completedTx = result.transaction;
@@ -123,34 +129,35 @@
   <!-- Phone number -->
   <p class="mb-2 text-xs font-semibold text-ink/50">Phone number</p>
   <BeneficiaryChips items={phoneBeneficiaries} onSelect={pickBeneficiary} />
-  <input type="tel" bind:value={phoneNumber} placeholder="08012345678"
-    class="mb-4 w-full rounded-xl border border-fanu-100 px-3.5 py-3 text-sm focus:border-fanu-500" />
+  <div class="mb-4"><PhoneInput bind:value={phoneNumber} /></div>
 
-  <!-- Plan type filter pills -->
-  <p class="mb-2 text-xs font-semibold text-ink/50">Plan type</p>
-  <div class="mb-1 flex gap-2 overflow-x-auto pb-1">
-    {#each DATA_PLAN_TYPES as t}
-      <button type="button" on:click={() => (planType = t.code)}
-        class="shrink-0 rounded-full border px-3.5 py-1.5 text-xs font-semibold transition"
-        class:bg-fanu-600={planType === t.code} class:text-white={planType === t.code} class:border-fanu-600={planType === t.code}
-        class:border-fanu-100={planType !== t.code} class:text-ink={planType !== t.code}
-      >{t.label}</button>
-    {/each}
-  </div>
-  <p class="mb-4 text-[11px] text-ink/40">{DATA_PLAN_TYPES.find(t => t.code === planType)?.blurb}</p>
+  <!-- Plan type filter pills (only shown when there is a choice) -->
+  {#if availableTypes.length > 1}
+    <p class="mb-2 text-xs font-semibold text-ink/50">Plan type</p>
+    <div class="mb-1 flex gap-2 overflow-x-auto pb-1">
+      {#each availableTypes as t}
+        <button type="button" on:click={() => (planType = t.code)}
+          class="shrink-0 rounded-full border px-3.5 py-1.5 text-xs font-semibold transition"
+          class:bg-fanu-600={planType === t.code} class:text-white={planType === t.code} class:border-fanu-600={planType === t.code}
+          class:border-fanu-100={planType !== t.code} class:text-ink={planType !== t.code}
+        >{t.label}</button>
+      {/each}
+    </div>
+    <p class="mb-4 text-[11px] text-ink/40">{DATA_PLAN_TYPES.find(t => t.code === planType)?.blurb}</p>
+  {/if}
 
   <!-- Plans grid under network header -->
   <div class="mb-5">
     {#each NETWORKS.filter(n => n.code === network) as net}
       <div class="mb-2 flex items-center gap-2">
         <NetworkLogo network={net.code} size="sm" />
-        <p class="text-sm font-bold text-ink">{net.label} · {DATA_PLAN_TYPES.find(t => t.code === planType)?.label}</p>
+        <p class="text-sm font-bold text-ink">{net.label}{availableTypes.length > 1 ? ` · ${DATA_PLAN_TYPES.find(t => t.code === planType)?.label}` : ''} data plans</p>
       </div>
     {/each}
 
     {#if plansForSelection.length === 0}
       <div class="rounded-2xl bg-white px-4 py-8 text-center text-sm text-ink/40 shadow-sm">
-        No {DATA_PLAN_TYPES.find(t => t.code === planType)?.label} plans available for {network} right now.
+        No data plans available for {network} right now.
       </div>
     {:else}
       <div class="grid grid-cols-3 gap-2 md:grid-cols-4">
@@ -190,7 +197,6 @@
       { label: 'Network', value: network },
       { label: 'Plan type', value: DATA_PLAN_TYPES.find(t => t.code === planType)?.label ?? '' },
       { label: 'Plan', value: `${planSizeLabel(selectedPlan)} · ${selectedPlan.validity}` },
-      { label: 'API Plan ID', value: selectedPlan.apiPlanId },
       { label: 'Phone number', value: phoneNumber }
     ]}
     {submitting} {error}

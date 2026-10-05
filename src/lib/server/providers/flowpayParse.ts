@@ -6,6 +6,8 @@ export interface FlowpayParsed {
   status: ProviderStatus;
   providerRef?: string;
   message?: string;
+  /** What FlowPay charged our wallet for this order, in Naira. */
+  cost?: number;
   /** Token rejected or IP not whitelisted: nothing was sent, and the cause is our configuration. */
   blocked?: boolean;
 }
@@ -18,6 +20,21 @@ function firstError(json: any): string | undefined {
     }
   }
   return typeof json?.message === 'string' ? json.message : undefined;
+}
+
+/** "1,770.00" -> 1770 */
+function money(v: unknown): number | undefined {
+  const n = Number(String(v ?? '').replace(/,/g, ''));
+  return Number.isFinite(n) ? n : undefined;
+}
+
+/** Our real cost: the drop in our FlowPay balance, or the "amount" they report as charged. */
+function costOf(d: any): number | undefined {
+  const before = money(d?.balance_before);
+  const after = money(d?.balance_after);
+  if (before !== undefined && after !== undefined && before - after > 0) return Math.round((before - after) * 100) / 100;
+  const amount = money(d?.amount);
+  return amount !== undefined && amount > 0 ? amount : undefined;
 }
 
 function mapStatus(s: unknown): ProviderStatus {
@@ -46,7 +63,7 @@ export function parseFlowpayResponse(http: number, json: any): FlowpayParsed {
 
   const d = json?.data;
   if (d && d.Status !== undefined) {
-    return { status: mapStatus(d.Status), providerRef: d.ident ? String(d.ident) : undefined, message: d.api_response };
+    return { status: mapStatus(d.Status), providerRef: d.ident ? String(d.ident) : undefined, message: d.api_response, cost: costOf(d) };
   }
   if (http === 422) return { status: 'failed', message: firstError(json) ?? 'Provider rejected the order' };
   return { status: 'pending', message: 'Awaiting provider confirmation' };
@@ -58,6 +75,10 @@ export interface FlowpayPlan {
   code: string;    // FlowPay's integer plan id, as text
   name: string;
   amount: number;  // what FlowPay charges you (api_amount when available)
+  size?: number;
+  unit?: 'MB' | 'GB';
+  validity?: string;
+  type?: string;
 }
 
 function normNetwork(n: unknown): string {
@@ -70,10 +91,16 @@ function planFrom(p: any, typeName: string): FlowpayPlan | null {
   const amount = Number(p.api_amount ?? p.amount);
   if (!Number.isFinite(amount)) return null;
   const type = typeName || p.type || '';
+  const size = Number(p.size);
+  const unit = String(p.volume ?? '').toUpperCase();
   return {
     code: String(p.id),
     name: `${p.size ?? ''}${p.volume ?? ''}${type ? ` ${type}` : ''} - ${p.validity ?? ''}`.trim(),
-    amount
+    amount,
+    size: Number.isFinite(size) && size > 0 ? size : undefined,
+    unit: unit === 'MB' || unit === 'GB' ? unit : undefined,
+    validity: p.validity ? String(p.validity) : undefined,
+    type: type || undefined
   };
 }
 

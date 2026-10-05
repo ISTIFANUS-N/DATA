@@ -41,7 +41,7 @@ async function post(path: string, body: Record<string, unknown>): Promise<Provid
       console.error('flowpay: access denied:', parsed.message);
       throw new ProviderUnavailable(parsed.message ?? 'FlowPay denied access');
     }
-    return { status: parsed.status, providerRef: parsed.providerRef, message: parsed.message };
+    return { status: parsed.status, providerRef: parsed.providerRef, message: parsed.message, cost: parsed.cost };
   } catch (e) {
     if (e instanceof ProviderUnavailable) throw e;
     // Timeout / network drop: the order may have gone through. Don't refund blindly.

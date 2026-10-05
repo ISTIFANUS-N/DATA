@@ -11,6 +11,7 @@
   import { formatNaira, formatDate } from '$lib/format';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import BrandLogo from '$lib/components/BrandLogo.svelte';
+  import PhoneInput from '$lib/components/PhoneInput.svelte';
   import PurchaseConfirm from '$lib/components/PurchaseConfirm.svelte';
   import SaveBeneficiaryPrompt from '$lib/components/SaveBeneficiaryPrompt.svelte';
   import BeneficiaryChips from '$lib/components/BeneficiaryChips.svelte';
@@ -167,15 +168,7 @@
 
     <p class="mb-2 text-xs font-medium text-ink/60">Phone number</p>
     <BeneficiaryChips items={phoneBeneficiaries} onSelect={pickBeneficiary} />
-    <label class="mb-5 flex flex-col gap-1.5">
-      <input
-        type="tel"
-        bind:value={phoneNumber}
-        placeholder="08012345678"
-        pattern="0\d{10}"
-        class="rounded-xl border border-fanu-100 px-3.5 py-3 text-sm focus:border-fanu-500"
-      />
-    </label>
+    <div class="mb-5"><PhoneInput bind:value={phoneNumber} pattern="0\d{10}" /></div>
 
     <p class="mb-2 text-xs font-medium text-ink/60">Amount</p>
     <div class="mb-3 grid grid-cols-3 gap-2">

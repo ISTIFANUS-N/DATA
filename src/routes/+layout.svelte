@@ -8,6 +8,7 @@
   import SideNav from '$lib/components/SideNav.svelte';
   import ToastHost from '$lib/components/ToastHost.svelte';
   import { loadSettings } from '$lib/stores/settings';
+  import { loadDataPlans } from '$lib/stores/catalog';
 
   const publicPaths = ['/login', '/register'];
 
@@ -17,7 +18,7 @@
   $: needsPhone = $isLoggedIn && $currentProfile !== null && !$currentProfile.phone;
 
   // Shared admin-managed settings (notification bar, airtime charges) for any signed-in user.
-  $: if (browser && $isLoggedIn) loadSettings();
+  $: if (browser && $isLoggedIn) { loadSettings(); loadDataPlans(); }
 
   // Re-evaluates whenever path, login state, or profile changes.
   // Guarded to the browser: goto() throws if called during SSR, and
