@@ -1,6 +1,7 @@
 import { writable } from 'svelte/store';
 import { supabase } from '$lib/supabase';
 import { DEFAULT_AIRTIME_CASHBACK, type AirtimeCashback } from '$lib/pricing';
+import { DATA_PLAN_TYPES } from '$lib/data/catalog';
 
 // Shared settings live in the app_settings table (see supabase/app_settings.sql),
 // so what an admin saves reaches every user — unlike the browser-local admin stores.
@@ -29,6 +30,24 @@ export const DEFAULT_SUGGESTION: WelcomeSuggestion = {
 export const dashboardNotice = writable<DashboardNotice>(DEFAULT_NOTICE);
 export const welcomeSuggestion = writable<WelcomeSuggestion>(DEFAULT_SUGGESTION);
 export const airtimeCashback = writable<AirtimeCashback>(DEFAULT_AIRTIME_CASHBACK);
+export interface PlanTypeDef { code: string; label: string; blurb?: string }
+
+/** The data plan types, with the names admins gave them (falls back to the starting set). */
+export const planTypes = writable<PlanTypeDef[]>(DATA_PLAN_TYPES);
+
+/** A new unique type code from a name, e.g. "Direct Data" -> DIRECT_DATA. */
+export function makePlanTypeCode(label: string, taken: string[]): string {
+  const base = label.toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'TYPE';
+  let code = base;
+  let n = 2;
+  while (taken.includes(code)) code = `${base}_${n++}`;
+  return code;
+}
+
+export function planTypeLabel(defs: PlanTypeDef[], code: string): string {
+  return defs.find((d) => d.code === code)?.label ?? code;
+}
+
 /** Which data plan types customers can see. A type that is missing counts as on. */
 export const dataPlanTypes = writable<Record<string, boolean>>({});
 export const settingsLoaded = writable(false);
@@ -46,12 +65,14 @@ export async function loadSettings(): Promise<void> {
   }
   airtimeCashback.set(cashback);
   dataPlanTypes.set({ ...(byKey.data_plan_types ?? {}) });
+  const defs = byKey.data_plan_type_defs;
+  planTypes.set(Array.isArray(defs) && defs.length ? defs : DATA_PLAN_TYPES);
   settingsLoaded.set(true);
 }
 
 /** Admin only (enforced by RLS). */
 export async function saveSetting(
-  key: 'dashboard_notice' | 'welcome_suggestion' | 'airtime_cashback' | 'data_plan_types',
+  key: 'dashboard_notice' | 'welcome_suggestion' | 'airtime_cashback' | 'data_plan_types' | 'data_plan_type_defs',
   value: unknown
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const { data: { user } } = await supabase.auth.getUser();

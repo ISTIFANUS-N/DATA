@@ -28,12 +28,16 @@ create policy "admins write data plans" on public.catalog_data_plans
   using (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin'))
   with check (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin'));
 
--- Five starter plans. Replace the api_plan_id values with your provider's real plan ids
--- (Admin -> Data Plans -> "Pick from provider"), then add the rest the same way.
-insert into public.catalog_data_plans (id, network, plan_type, api_plan_id, size_value, size_unit, validity, price) values
-  ('mtn-sme-1gb-30',       'MTN',    'SME',     'mtn-sme-1gb',       1,   'GB', '30 days', 270),
-  ('mtn-sme-2gb-30',       'MTN',    'SME',     'mtn-sme-2gb',       2,   'GB', '30 days', 540),
-  ('mtn-gift-1gb-30',      'MTN',    'GIFTING', 'mtn-gifting-1gb',   1,   'GB', '30 days', 650),
-  ('glo-gift-1.5gb-30',    'GLO',    'GIFTING', 'glo-gifting-1.5gb', 1.5, 'GB', '30 days', 600),
-  ('airtel-gift-1.5gb-30', 'AIRTEL', 'GIFTING', 'airtel-gifting-1.5gb', 1.5, 'GB', '30 days', 650)
+-- Five starter plans, switched OFF until you give each one a real provider plan number
+-- (Admin -> Data Plans -> edit -> "Pick from provider"). Or just import your provider's plans and delete these.
+insert into public.catalog_data_plans (id, network, plan_type, api_plan_id, size_value, size_unit, validity, price, is_active) values
+  ('mtn-sme-1gb-30', 'MTN', 'SME', '',       1,   'GB', '30 days', 270, false),
+  ('mtn-sme-2gb-30', 'MTN', 'SME', '',       2,   'GB', '30 days', 540, false),
+  ('mtn-gift-1gb-30', 'MTN', 'GIFTING', '',   1,   'GB', '30 days', 650, false),
+  ('glo-gift-1.5gb-30', 'GLO', 'GIFTING', '', 1.5, 'GB', '30 days', 600, false),
+  ('airtel-gift-1.5gb-30', 'AIRTEL', 'GIFTING', '', 1.5, 'GB', '30 days', 650, false)
 on conflict (id) do nothing;
+
+-- If you ran an earlier version of this file: plans with a non-numeric api_plan_id (the old placeholders)
+-- cannot be bought with FlowPay, so switch them off until they get a real plan number.
+update public.catalog_data_plans set is_active = false, api_plan_id = '' where api_plan_id !~ '^[0-9]+$';

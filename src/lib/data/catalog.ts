@@ -37,8 +37,10 @@ export function planSizeLabel(plan: DataPlan): string {
   return `${plan.sizeValue}${plan.sizeUnit}`;
 }
 
-export type DataPlanType = 'GIFTING' | 'SME' | 'DATA_SHARE' | 'CORPORATE_GIFTING';
+// Plan types are managed by admins (Admin -> Data Plans), so a type is just its code text.
+export type DataPlanType = string;
 
+// Starting set of types, used until an admin changes them.
 export const DATA_PLAN_TYPES: { code: DataPlanType; label: string; blurb: string }[] = [
   { code: 'GIFTING', label: 'Gifting', blurb: 'Standard data plan, works like your normal bundle' },
   { code: 'SME', label: 'SME', blurb: 'Cheaper, high-volume — no rollover, no data top-up while active' },
@@ -49,11 +51,11 @@ export const DATA_PLAN_TYPES: { code: DataPlanType; label: string; blurb: string
 // Starter plans only (also seeded by supabase/data_plans.sql). Real plans live in the database
 // and are managed in Admin -> Data Plans.
 export const DEFAULT_DATA_PLANS: DataPlan[] = [
-  { id: 'mtn-sme-1gb-30',       network: 'MTN',    apiPlanId: 'mtn-sme-1gb',          sizeValue: 1,   sizeUnit: 'GB', validity: '30 days', price: 270, type: 'SME',     isActive: true },
-  { id: 'mtn-sme-2gb-30',       network: 'MTN',    apiPlanId: 'mtn-sme-2gb',          sizeValue: 2,   sizeUnit: 'GB', validity: '30 days', price: 540, type: 'SME',     isActive: true },
-  { id: 'mtn-gift-1gb-30',      network: 'MTN',    apiPlanId: 'mtn-gifting-1gb',      sizeValue: 1,   sizeUnit: 'GB', validity: '30 days', price: 650, type: 'GIFTING', isActive: true },
-  { id: 'glo-gift-1.5gb-30',    network: 'GLO',    apiPlanId: 'glo-gifting-1.5gb',    sizeValue: 1.5, sizeUnit: 'GB', validity: '30 days', price: 600, type: 'GIFTING', isActive: true },
-  { id: 'airtel-gift-1.5gb-30', network: 'AIRTEL', apiPlanId: 'airtel-gifting-1.5gb', sizeValue: 1.5, sizeUnit: 'GB', validity: '30 days', price: 650, type: 'GIFTING', isActive: true }
+  { id: 'mtn-sme-1gb-30',       network: 'MTN',    apiPlanId: '',          sizeValue: 1,   sizeUnit: 'GB', validity: '30 days', price: 270, type: 'SME',     isActive: false },
+  { id: 'mtn-sme-2gb-30',       network: 'MTN',    apiPlanId: '',          sizeValue: 2,   sizeUnit: 'GB', validity: '30 days', price: 540, type: 'SME',     isActive: false },
+  { id: 'mtn-gift-1gb-30',      network: 'MTN',    apiPlanId: '',      sizeValue: 1,   sizeUnit: 'GB', validity: '30 days', price: 650, type: 'GIFTING', isActive: false },
+  { id: 'glo-gift-1.5gb-30',    network: 'GLO',    apiPlanId: '',    sizeValue: 1.5, sizeUnit: 'GB', validity: '30 days', price: 600, type: 'GIFTING', isActive: false },
+  { id: 'airtel-gift-1.5gb-30', network: 'AIRTEL', apiPlanId: '', sizeValue: 1.5, sizeUnit: 'GB', validity: '30 days', price: 650, type: 'GIFTING', isActive: false }
 ];
 
 export interface Disco {

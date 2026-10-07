@@ -69,7 +69,9 @@ export const POST: RequestHandler = async ({ request, locals }) => {
   } catch (e) {
     if (e instanceof ProviderUnavailable) {
       console.error('purchase: provider unavailable:', e.message);
-      return fail(UNAVAILABLE, 503);
+      // Admins also see the real reason, so setup problems are easy to spot while testing.
+      const { data: me } = await admin.from('profiles').select('role').eq('id', user.id).maybeSingle();
+      return fail(me?.role === 'admin' ? `${UNAVAILABLE} (Admin note: ${e.message})` : UNAVAILABLE, 503);
     }
     throw e;
   }
