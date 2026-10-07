@@ -1,9 +1,8 @@
 <script lang="ts">
-  import { dataPlans, adminAddDataPlan, adminAddDataPlans, adminUpdateDataPlan, adminDeleteDataPlan } from '$lib/stores/catalog';
-  import { currentProfile } from '$lib/stores/db';
-  import { dataPlanTypes, saveSetting } from '$lib/stores/settings';
+  import { dataPlans, adminAddDataPlan, adminUpdateDataPlan, adminDeleteDataPlan } from '$lib/stores/catalog';
+  import { dataPlanTypes, planTypes, settingsLoaded, saveSetting, makePlanTypeCode, planTypeLabel, type PlanTypeDef } from '$lib/stores/settings';
   import { stageApproval } from '$lib/stores/approvals';
-  import { NETWORKS, DATA_PLAN_TYPES, planSizeLabel, type Network, type DataPlan, type DataPlanType } from '$lib/data/catalog';
+  import { NETWORKS, planSizeLabel, type Network, type DataPlan, type DataPlanType } from '$lib/data/catalog';
   import { showToast } from '$lib/stores/toast';
   import { formatNaira } from '$lib/format';
 
@@ -11,22 +10,6 @@
   let filterType: DataPlanType | 'ALL' = 'ALL';
   let editingId: string | null = null;
   let showAddForm = false;
-
-  // Real plan codes from the provider (VTpass), so the API Plan ID is never guessed.
-  type ProviderPlan = { code: string; name: string; amount: number; size?: number; unit?: 'MB' | 'GB'; validity?: string; type?: string };
-  let providerPlans: ProviderPlan[] = [];
-  let loadingPlans = false;
-  async function loadProviderPlans() {
-    loadingPlans = true; providerPlans = [];
-    try {
-      const res = await fetch(`/api/admin/provider-plans?network=${form.network}`);
-      const data = await res.json().catch(() => null);
-      if (!res.ok || !data?.ok) { showToast(data?.error ?? 'Could not load provider plans', 'error'); return; }
-      providerPlans = data.plans;
-      if (!providerPlans.length) showToast('The provider returned no plans for this network', 'error');
-    } catch { showToast('Network problem loading provider plans', 'error'); }
-    finally { loadingPlans = false; }
-  }
 
   let form = {
     network: 'MTN' as Network,
@@ -49,71 +32,71 @@
   })).filter(g => g.plans.length > 0);
 
   // ── Plan types customers can see ──
-  $: isSuperAdmin = $currentProfile?.role === 'admin' && $currentProfile?.package === 'reseller';
   async function setTypeEnabled(type: DataPlanType, on: boolean) {
     const res = await saveSetting('data_plan_types', { ...$dataPlanTypes, [type]: on });
-    showToast(res.ok ? `${DATA_PLAN_TYPES.find(t => t.code === type)?.label} ${on ? 'shown to' : 'hidden from'} customers` : res.error, res.ok ? undefined : 'error');
+    showToast(res.ok ? `${planTypeLabel($planTypes, type)} ${on ? 'shown to' : 'hidden from'} customers` : res.error, res.ok ? undefined : 'error');
   }
 
-  // ── Import plans from the provider ──
-  let importNetwork: Network = 'MTN';
-  let importMarkup = 0;
-  let importPlans: ProviderPlan[] = [];
-  let importSelected: Record<string, boolean> = {};
-  let importLoading = false;
-  let importing = false;
+  // ── Add / rename / remove plan types ──
+  let typeEdits: PlanTypeDef[] = [];
+  let typeEditsReady = false;
+  $: if ($settingsLoaded && !typeEditsReady) { typeEdits = $planTypes.map(t => ({ ...t })); typeEditsReady = true; }
+  let newTypeName = '';
+  let savingTypes = false;
+  const plansUsing = (code: string) => $dataPlans.filter(p => p.type === code).length;
 
-  function mapType(t?: string): DataPlanType {
-    const s = (t ?? '').toLowerCase();
-    if (s.includes('corporate')) return 'CORPORATE_GIFTING';
-    if (s.includes('share')) return 'DATA_SHARE';
-    if (s.includes('gift')) return 'GIFTING';
-    if (s.includes('sme')) return 'SME';
-    return 'GIFTING';
+  async function persistTypes(next: PlanTypeDef[], okMessage: string): Promise<boolean> {
+    savingTypes = true;
+    const res = await saveSetting('data_plan_type_defs', next);
+    savingTypes = false;
+    if (!res.ok) { showToast(res.error, 'error'); return false; }
+    typeEdits = $planTypes.map(t => ({ ...t }));
+    showToast(okMessage);
+    return true;
   }
 
-  $: existingCodes = new Set($dataPlans.filter(p => p.network === importNetwork).map(p => p.apiPlanId));
-  $: importable = importPlans.filter(p => p.size && p.unit);
-  $: selectedCount = importable.filter(p => importSelected[p.code]).length;
-
-  async function loadImportPlans() {
-    importLoading = true; importPlans = []; importSelected = {};
-    try {
-      const res = await fetch(`/api/admin/provider-plans?network=${importNetwork}`);
-      const data = await res.json().catch(() => null);
-      if (!res.ok || !data?.ok) { showToast(data?.error ?? 'Could not load provider plans', 'error'); return; }
-      importPlans = data.plans;
-      // Pre-tick plans that are not in your list yet.
-      importSelected = Object.fromEntries(importPlans.filter(p => !existingCodes.has(p.code)).map(p => [p.code, true]));
-      if (!importPlans.length) showToast('The provider returned no plans for this network', 'error');
-    } catch { showToast('Network problem loading provider plans', 'error'); }
-    finally { importLoading = false; }
+  function labelTaken(label: string, exceptCode?: string) {
+    return typeEdits.some(t => t.code !== exceptCode && t.label.trim().toLowerCase() === label.trim().toLowerCase());
   }
 
-  async function importSelectedPlans() {
-    const picked = importable.filter(p => importSelected[p.code]);
-    if (!picked.length) return;
-    importing = true;
-    const res = await adminAddDataPlans(picked.map(p => ({
-      network: importNetwork,
-      type: mapType(p.type),
-      apiPlanId: p.code,
-      sizeValue: p.size!,
-      sizeUnit: p.unit!,
-      validity: p.validity ?? '30 days',
-      price: Math.round(p.amount + (Number(importMarkup) || 0)),
-      isActive: true
-    })));
-    importing = false;
-    if (!res.ok) { showToast(res.error, 'error'); return; }
-    showToast(`${picked.length} plan${picked.length === 1 ? '' : 's'} added`);
-    importPlans = []; importSelected = {};
+  async function saveTypeNames() {
+    if (typeEdits.some(t => !t.label.trim())) { showToast('Every plan type needs a name', 'error'); return; }
+    const seen = new Set<string>();
+    for (const t of typeEdits) {
+      const k = t.label.trim().toLowerCase();
+      if (seen.has(k)) { showToast(`Two types are both called "${t.label.trim()}"`, 'error'); return; }
+      seen.add(k);
+    }
+    await persistTypes(typeEdits.map(t => ({ code: t.code, label: t.label.trim(), blurb: (t.blurb ?? '').trim() })), 'Plan types saved');
+  }
+
+  async function addType() {
+    const name = newTypeName.trim();
+    if (!name) { showToast('Type a name for the new plan type', 'error'); return; }
+    if (labelTaken(name)) { showToast(`"${name}" already exists`, 'error'); return; }
+    const code = makePlanTypeCode(name, typeEdits.map(t => t.code));
+    if (await persistTypes([...typeEdits, { code, label: name, blurb: '' }], `"${name}" added`)) newTypeName = '';
+  }
+
+  async function deleteType(code: string) {
+    const def = typeEdits.find(t => t.code === code);
+    if (plansUsing(code) > 0) { showToast('Move or delete the plans using this type first', 'error'); return; }
+    if (!confirm(`Delete the plan type "${def?.label}"?`)) return;
+    await persistTypes(typeEdits.filter(t => t.code !== code), 'Plan type deleted');
   }
 
   function startEdit(plan: DataPlan) {
     editingId = plan.id; showAddForm = false;
     form = { network: plan.network, type: plan.type, apiPlanId: plan.apiPlanId,
       sizeValue: plan.sizeValue, sizeUnit: plan.sizeUnit, validity: plan.validity, price: plan.price };
+  }
+
+  // Start a new plan from an existing one (same network, type, size, validity): just enter the new plan number and price.
+  function duplicatePlan(plan: DataPlan) {
+    editingId = null; showAddForm = true;
+    form = { network: plan.network, type: plan.type, apiPlanId: '', sizeValue: plan.sizeValue,
+      sizeUnit: plan.sizeUnit, validity: plan.validity, price: plan.price };
+    if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   function startAdd() {
@@ -124,8 +107,12 @@
   function cancelForm() { editingId = null; showAddForm = false; }
 
   async function saveForm() {
-    if (!form.apiPlanId.trim() || form.sizeValue <= 0 || form.price <= 0) {
-      showToast('Fill in all fields — API Plan ID, size and price are required', 'error'); return;
+    form.apiPlanId = form.apiPlanId.trim();
+    if (!/^\d+$/.test(form.apiPlanId)) {
+      showToast('API Plan ID must be a number — the plan number from your provider (e.g. 12)', 'error'); return;
+    }
+    if (form.sizeValue <= 0 || form.price <= 0) {
+      showToast('Fill in all fields — size and price are required', 'error'); return;
     }
     const payload = { ...form, isActive: true };
     if (editingId) {
@@ -174,77 +161,52 @@
     <span class="text-xs text-ink/50">Type:</span>
     <select bind:value={filterType} class="rounded-lg border border-fanu-100 bg-white px-2.5 py-1.5 text-xs">
       <option value="ALL">All</option>
-      {#each DATA_PLAN_TYPES as t}<option value={t.code}>{t.label}</option>{/each}
+      {#each $planTypes as t}<option value={t.code}>{t.label}</option>{/each}
     </select>
   </div>
 </div>
 
-<!-- Plan types customers can see -->
+<!-- Plan types: add, rename, show/hide -->
 <div class="mb-4 rounded-2xl bg-white p-4 shadow-sm">
-  <p class="text-sm font-semibold text-ink">Plan types shown to customers</p>
+  <p class="text-sm font-semibold text-ink">Plan types</p>
   <p class="mb-3 text-[11px] text-ink/50">
-    Switch off a type your provider doesn't offer. Types with no active plans on a network are hidden automatically.
+    Rename types, add new ones, or switch a type off for customers. Types with no active plans on a network are hidden automatically.
   </p>
-  <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
-    {#each DATA_PLAN_TYPES as t}
+
+  <div class="space-y-2">
+    {#each typeEdits as t (t.code)}
       {@const on = $dataPlanTypes[t.code] !== false}
-      <label class="flex cursor-pointer items-center justify-between rounded-xl border border-fanu-100 px-3 py-2.5">
-        <span class="min-w-0 pr-3">
-          <span class="block text-xs font-semibold text-ink">{t.label}</span>
-          <span class="block truncate text-[10px] text-ink/45">{$dataPlans.filter(p => p.type === t.code).length} plans</span>
-        </span>
-        <input type="checkbox" checked={on} on:change={(e) => setTypeEnabled(t.code, e.currentTarget.checked)} class="h-4 w-4 accent-fanu-600" />
-      </label>
+      <div class="rounded-xl border border-fanu-100 p-2.5">
+        <div class="flex items-center gap-2">
+          <input type="text" bind:value={t.label} maxlength="40" aria-label="Type name"
+            class="min-w-0 flex-1 rounded-lg border border-fanu-100 px-2.5 py-1.5 text-sm font-semibold" />
+          <label class="flex shrink-0 cursor-pointer items-center gap-1.5 text-[11px] text-ink/60">
+            Shown
+            <input type="checkbox" checked={on} on:change={(e) => setTypeEnabled(t.code, e.currentTarget.checked)} class="h-4 w-4 accent-fanu-600" />
+          </label>
+          <button type="button" on:click={() => deleteType(t.code)} disabled={savingTypes}
+            class="shrink-0 text-xs font-medium text-red-500 hover:underline disabled:opacity-40"
+            title={plansUsing(t.code) ? 'In use by plans' : 'Delete type'}>Delete</button>
+        </div>
+        <input type="text" bind:value={t.blurb} maxlength="120" placeholder="Short description customers see (optional)"
+          class="mt-1.5 w-full rounded-lg border border-fanu-100 px-2.5 py-1.5 text-[11px]" />
+        <p class="mt-1 text-[10px] text-ink/40">{plansUsing(t.code)} plan{plansUsing(t.code) === 1 ? '' : 's'} · code <span class="font-mono">{t.code}</span></p>
+      </div>
     {/each}
   </div>
-</div>
 
-<!-- Import plans from the provider -->
-<div class="mb-4 rounded-2xl bg-white p-4 shadow-sm">
-  <p class="text-sm font-semibold text-ink">Import plans from provider</p>
-  {#if !isSuperAdmin}
-    <p class="mt-1 text-[11px] text-ink/50">Only a super admin can bulk-import plans. You can still add plans one at a time with "+ Add plan".</p>
-  {:else}
-    <p class="mb-3 text-[11px] text-ink/50">
-      Load your provider's plans, tick the ones to sell, and add your markup. The price you set = provider price + markup.
-    </p>
-    <div class="flex flex-wrap items-end gap-3">
-      <label class="flex flex-col gap-1 text-xs"><span class="font-medium text-ink/60">Network</span>
-        <select bind:value={importNetwork} on:change={() => { importPlans = []; importSelected = {}; }} class="rounded-lg border border-fanu-100 px-2.5 py-2 text-sm">
-          {#each NETWORKS as n}<option value={n.code}>{n.label}</option>{/each}
-        </select></label>
-      <label class="flex flex-col gap-1 text-xs"><span class="font-medium text-ink/60">Markup per plan (₦)</span>
-        <input type="number" min="0" bind:value={importMarkup} class="w-28 rounded-lg border border-fanu-100 px-2.5 py-2 text-sm" /></label>
-      <button type="button" on:click={loadImportPlans} disabled={importLoading}
-        class="rounded-lg bg-fanu-600 px-4 py-2 text-xs font-semibold text-white hover:bg-fanu-700 disabled:opacity-60">
-        {importLoading ? 'Loading…' : 'Load plans'}
-      </button>
-    </div>
-
-    {#if importPlans.length && !importable.length}
-      <p class="mt-3 text-[11px] text-amber-700">
-        This provider doesn't send plan sizes, so plans can't be imported automatically. Use "Pick from provider" when adding a plan instead.
-      </p>
-    {:else if importable.length}
-      <div class="mt-3 max-h-72 overflow-y-auto rounded-xl border border-fanu-100">
-        {#each importable as p (p.code)}
-          <label class="flex cursor-pointer items-center gap-3 border-b border-fanu-50 px-3 py-2 last:border-0">
-            <input type="checkbox" bind:checked={importSelected[p.code]} class="h-4 w-4 accent-fanu-600" />
-            <span class="min-w-0 flex-1 text-xs text-ink">{p.name}
-              {#if existingCodes.has(p.code)}<span class="ml-1 rounded-full bg-fanu-50 px-1.5 py-0.5 text-[9px] font-semibold text-fanu-700">already added</span>{/if}
-            </span>
-            <span class="shrink-0 text-right font-mono text-[11px] text-ink/60">
-              cost {formatNaira(p.amount)} → <strong class="text-fanu-700">{formatNaira(Math.round(p.amount + (Number(importMarkup) || 0)))}</strong>
-            </span>
-          </label>
-        {/each}
-      </div>
-      <button type="button" on:click={importSelectedPlans} disabled={importing || !selectedCount}
-        class="mt-3 rounded-lg bg-fanu-600 px-4 py-2 text-xs font-semibold text-white hover:bg-fanu-700 disabled:opacity-60">
-        {importing ? 'Adding…' : `Add ${selectedCount} selected plan${selectedCount === 1 ? '' : 's'}`}
-      </button>
-    {/if}
-  {/if}
+  <div class="mt-3 flex flex-wrap items-center gap-2">
+    <button type="button" on:click={saveTypeNames} disabled={savingTypes}
+      class="rounded-lg bg-fanu-600 px-4 py-2 text-xs font-semibold text-white hover:bg-fanu-700 disabled:opacity-60">
+      {savingTypes ? 'Saving…' : 'Save type names'}
+    </button>
+    <span class="text-[11px] text-ink/40">or add a new one:</span>
+    <input type="text" bind:value={newTypeName} maxlength="40" placeholder="e.g. Direct Data"
+      on:keydown={(e) => e.key === 'Enter' && addType()}
+      class="min-w-0 flex-1 rounded-lg border border-fanu-100 px-2.5 py-2 text-sm sm:max-w-[200px]" />
+    <button type="button" on:click={addType} disabled={savingTypes}
+      class="rounded-lg border border-fanu-100 px-3.5 py-2 text-xs font-semibold text-ink/70 hover:bg-fanu-50 disabled:opacity-60">+ Add type</button>
+  </div>
 </div>
 
 {#if showAddForm || editingId}
@@ -257,14 +219,13 @@
         </select></label>
       <label class="flex flex-col gap-1 text-xs"><span class="font-medium text-ink/60">Type</span>
         <select bind:value={form.type} class="rounded-lg border border-fanu-100 px-2.5 py-2 text-sm">
-          {#each DATA_PLAN_TYPES as t}<option value={t.code}>{t.label}</option>{/each}
+          {#each $planTypes as t}<option value={t.code}>{t.label}</option>{/each}
         </select></label>
-      <label class="flex flex-col gap-1 text-xs"><span class="font-medium text-ink/60">API Plan ID</span>
-        <input type="text" bind:value={form.apiPlanId} placeholder="e.g. mtn-sme-1gb" class="rounded-lg border border-fanu-100 px-2.5 py-2 text-sm font-mono" />
-        <button type="button" on:click={loadProviderPlans} disabled={loadingPlans}
-          class="mt-1 self-start text-[11px] font-semibold text-fanu-700 hover:underline disabled:opacity-50">
-          {loadingPlans ? 'Loading…' : `Pick from provider (${form.network})`}
-        </button>
+      <label class="flex flex-col gap-1 text-xs"><span class="font-medium text-ink/60">API Plan ID (number)</span>
+        <input type="text" inputmode="numeric" pattern="[0-9]*" bind:value={form.apiPlanId}
+          on:input={() => (form.apiPlanId = form.apiPlanId.replace(/\D/g, ''))}
+          placeholder="e.g. 12" class="rounded-lg border border-fanu-100 px-2.5 py-2 text-sm font-mono" />
+        <span class="text-[10px] text-ink/40">The plan number from your provider's dashboard (for example 12).</span>
       </label>
       <label class="flex flex-col gap-1 text-xs"><span class="font-medium text-ink/60">Size (number)</span>
         <input type="number" min="0" step="0.5" bind:value={form.sizeValue} class="rounded-lg border border-fanu-100 px-2.5 py-2 text-sm" /></label>
@@ -278,19 +239,6 @@
       <label class="flex flex-col gap-1 text-xs"><span class="font-medium text-ink/60">Price (₦)</span>
         <input type="number" min="0" bind:value={form.price} class="rounded-lg border border-fanu-100 px-2.5 py-2 text-sm" /></label>
     </div>
-    {#if providerPlans.length}
-      <label class="mt-3 flex flex-col gap-1 text-xs">
-        <span class="font-medium text-ink/60">Provider plans — choose one to fill the plan code</span>
-        <select class="rounded-lg border border-fanu-100 px-2.5 py-2 text-sm"
-          on:change={(e) => { form.apiPlanId = e.currentTarget.value; }}>
-          <option value="">Select a plan…</option>
-          {#each providerPlans as p}
-            <option value={p.code}>{p.name} — {formatNaira(p.amount)} ({p.code})</option>
-          {/each}
-        </select>
-        <span class="text-[10px] text-ink/40">The amount shown is what the provider charges you. Set your own selling price below.</span>
-      </label>
-    {/if}
     <p class="mt-2 text-[11px] text-ink/40">Display: <strong>{form.sizeValue}{form.sizeUnit}</strong> · {form.validity} · {formatNaira(form.price)}</p>
     <div class="mt-3 flex gap-2">
       <button type="button" on:click={saveForm} class="rounded-lg bg-fanu-600 px-4 py-2 text-xs font-semibold text-white hover:bg-fanu-700">Save</button>
@@ -316,7 +264,7 @@
             <div class="flex items-center gap-2">
               <p class="font-mono text-sm font-bold text-ink">{planSizeLabel(plan)}</p>
               <span class="rounded-full bg-fanu-50 px-1.5 py-0.5 text-[9px] font-semibold text-fanu-700">
-                {DATA_PLAN_TYPES.find(t => t.code === plan.type)?.label}
+                {planTypeLabel($planTypes, plan.type)}
               </span>
               {#if !plan.isActive}
                 <span class="rounded-full bg-red-50 px-1.5 py-0.5 text-[9px] font-semibold text-red-600">Off</span>
@@ -326,6 +274,7 @@
           </div>
           <p class="font-mono text-sm font-semibold tabular-nums text-fanu-700">{formatNaira(plan.price)}</p>
           <button type="button" on:click={() => startEdit(plan)} class="text-xs font-medium text-ink/50 hover:text-ink">Edit</button>
+          <button type="button" on:click={() => duplicatePlan(plan)} class="text-xs font-medium text-ink/50 hover:text-ink" title="Start a new plan from this one">Copy</button>
           <button type="button" on:click={() => handleDelete(plan.id, planSizeLabel(plan))} class="text-xs font-medium text-red-500 hover:underline">Del</button>
         </div>
       {/each}

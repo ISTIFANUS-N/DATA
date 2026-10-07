@@ -2,9 +2,9 @@
   import { serviceToggles } from '$lib/stores/serviceStatus';
   import ServiceUnavailable from '$lib/components/ServiceUnavailable.svelte';
   import { goto } from '$app/navigation';
-  import { NETWORKS, DATA_PLAN_TYPES, planSizeLabel, type Network, type DataPlan, type DataPlanType } from '$lib/data/catalog';
+  import { NETWORKS, planSizeLabel, type Network, type DataPlan, type DataPlanType } from '$lib/data/catalog';
   import { dataPlans } from '$lib/stores/catalog';
-  import { dataPlanTypes } from '$lib/stores/settings';
+  import { dataPlanTypes, planTypes } from '$lib/stores/settings';
   import PhoneInput from '$lib/components/PhoneInput.svelte';
   import { purchaseService, walletBalance, beneficiaries, isBeneficiarySaved, currentProfile } from '$lib/stores/db';
   import { detectNetwork, normalizePhone } from '$lib/network';
@@ -37,7 +37,7 @@
   $: serviceEnabled = serviceToggle?.isEnabled ?? true;
   $: serviceReason = serviceToggle?.disabledReason ?? 'This service is temporarily unavailable.';
 
-  $: availableTypes = DATA_PLAN_TYPES.filter(t =>
+  $: availableTypes = $planTypes.filter(t =>
     $dataPlanTypes[t.code] !== false &&
     $dataPlans.some(p => p.network === network && p.type === t.code && p.isActive));
   $: if (availableTypes.length && !availableTypes.some(t => t.code === planType)) planType = availableTypes[0].code;
@@ -143,7 +143,7 @@
         >{t.label}</button>
       {/each}
     </div>
-    <p class="mb-4 text-[11px] text-ink/40">{DATA_PLAN_TYPES.find(t => t.code === planType)?.blurb}</p>
+    <p class="mb-4 text-[11px] text-ink/40">{$planTypes.find(t => t.code === planType)?.blurb}</p>
   {/if}
 
   <!-- Plans grid under network header -->
@@ -151,7 +151,7 @@
     {#each NETWORKS.filter(n => n.code === network) as net}
       <div class="mb-2 flex items-center gap-2">
         <NetworkLogo network={net.code} size="sm" />
-        <p class="text-sm font-bold text-ink">{net.label}{availableTypes.length > 1 ? ` · ${DATA_PLAN_TYPES.find(t => t.code === planType)?.label}` : ''} data plans</p>
+        <p class="text-sm font-bold text-ink">{net.label}{availableTypes.length > 1 ? ` · ${$planTypes.find(t => t.code === planType)?.label}` : ''} data plans</p>
       </div>
     {/each}
 
@@ -195,7 +195,7 @@
     amountLabel={pkg === 'reseller' ? `Reseller price · ${packageLabel(pkg)}` : 'Data plan price'}
     rows={[
       { label: 'Network', value: network },
-      { label: 'Plan type', value: DATA_PLAN_TYPES.find(t => t.code === planType)?.label ?? '' },
+      { label: 'Plan type', value: $planTypes.find(t => t.code === planType)?.label ?? '' },
       { label: 'Plan', value: `${planSizeLabel(selectedPlan)} · ${selectedPlan.validity}` },
       { label: 'Phone number', value: phoneNumber }
     ]}

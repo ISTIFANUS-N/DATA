@@ -12,7 +12,8 @@
     adminToggleResultPin, adminUpdateAirtimeSetting, adminUpdateDisco,
     adminUpdateRechargeDenom
   } from '$lib/stores/catalog';
-  import { NETWORKS, DATA_PLAN_TYPES } from '$lib/data/catalog';
+  import { NETWORKS } from '$lib/data/catalog';
+  import { planTypes } from '$lib/stores/settings';
   import { showToast } from '$lib/stores/toast';
   import { formatNaira } from '$lib/format';
 
@@ -133,7 +134,7 @@
 <!-- ── DATA: PER-PLAN-TYPE BULK TOGGLE ── -->
 <p class="mb-2 text-xs font-bold uppercase tracking-wide text-ink/40">Data — by plan type</p>
 <div class="mb-4 overflow-hidden rounded-2xl bg-white shadow-sm">
-  {#each DATA_PLAN_TYPES as pt}
+  {#each $planTypes as pt}
     {@const typePlans = $dataPlans.filter(p => p.type === pt.code)}
     {@const allOn = typePlans.every(p => p.isActive)}
     <div class="flex items-center justify-between border-b border-fanu-50 px-4 py-3 last:border-0">
@@ -166,7 +167,7 @@
       <div class="flex items-center justify-between border-b border-fanu-50 px-4 py-2.5 last:border-0">
         <div class="min-w-0">
           <p class="font-mono text-sm font-bold text-ink" style={!plan.isActive ? 'opacity:0.4' : ''}>{plan.sizeValue}{plan.sizeUnit}</p>
-          <p class="text-[11px] text-ink/40">{plan.validity} · {(DATA_PLAN_TYPES.find(t => t.code === plan.type) || { label: '' }).label}</p>
+          <p class="text-[11px] text-ink/40">{plan.validity} · {($planTypes.find(t => t.code === plan.type) || { label: '' }).label}</p>
         </div>
         <div class="flex shrink-0 items-center gap-3">
           <span class="font-mono text-xs tabular-nums text-ink/60">{formatNaira(plan.price)}</span>

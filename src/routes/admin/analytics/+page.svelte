@@ -1,6 +1,7 @@
 <script lang="ts">
   import { allTransactionsForAdmin, allAccountsForAdmin, todayLoginCount } from '$lib/stores/db';
   import { formatNaira } from '$lib/format';
+  import { planTypes } from '$lib/stores/settings';
   import type { Transaction } from '$lib/types';
 
   type TxWithUser = Transaction & { userEmail: string; userName: string };
@@ -21,7 +22,7 @@
   const NET_COLORS: Record<string,string> = { MTN:'#FFCB05', GLO:'#00A651', AIRTEL:'#ED1C24', '9MOBILE':'#006D5B' };
   const NET_BG: Record<string,string> = { MTN:'#FFF9E0', GLO:'#E6F7EF', AIRTEL:'#FDEAEA', '9MOBILE':'#E0F6F5' };
 
-  const DATA_PLAN_TYPES = ['SME','GIFTING','DATA_SHARE','CORPORATE_GIFTING'];
+  $: DATA_PLAN_TYPES = $planTypes.map((t) => t.code);
   const PLAN_TYPE_LABELS: Record<string,string> = {
     SME:'SME', GIFTING:'Gifting', DATA_SHARE:'Data Share', CORPORATE_GIFTING:'Corporate Gifting'
   };
